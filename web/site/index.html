@@ -22,6 +22,11 @@ nav .links a:hover,nav .links a.active{color:var(--acc)}
 .btn{display:inline-block;background:linear-gradient(135deg,var(--acc),#0ea5e9);color:#06121f;font-weight:700;padding:11px 22px;border-radius:12px;text-decoration:none;cursor:pointer}
 .btn:hover{filter:brightness(1.08)}
 .btn.ghost{background:var(--panel2);color:var(--txt);border:1px solid #2c3a55}
+.tgband{text-align:center;margin:8px 0 4px}
+.tg-btn{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#2AABEE,#229ED9);color:#fff;font-weight:700;font-size:18px;padding:14px 30px;border-radius:14px;text-decoration:none;box-shadow:0 8px 24px rgba(34,158,217,.35)}
+.tg-btn:hover{filter:brightness(1.08)}
+.tg-btn svg{width:24px;height:24px;fill:#fff;flex:0 0 auto}
+.tgband .h{color:var(--mut);font-size:14px;margin-top:8px}
 nav .btn{margin-left:auto}
 .langsw{display:inline-flex;gap:2px;border:1px solid #2c3a55;border-radius:8px;overflow:hidden;margin-left:10px}
 .langsw button{background:var(--panel2);color:var(--mut);border:0;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:600}
@@ -108,6 +113,12 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
 <div class="hero"><div class="wrap">
   <h1 data-i-html="hero_h1">A coin your <em>CPU</em> mines.<br>Not a GPU. Not an ASIC. <em>Ever.</em></h1>
   <p data-i-html="hero_p">Cereblix (CRB) is a cryptocurrency on the new <b>NeuroMorph</b> PoW algorithm: a virtual machine that <b>reprograms itself every 4096 blocks</b>. A chip able to mine it has to be a processor - by definition.</p>
+  <div class="tgband" style="margin:0 0 18px">
+    <a class="tg-btn" href="https://t.me/cereblix" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+      <span data-i="tg_join">Join our Telegram</span>
+    </a>
+  </div>
   <a class="btn" href="#mine" data-i="hero_cta1">Start mining in 2 minutes</a>&nbsp;
   <a class="btn ghost" href="wallet/" data-i="hero_cta2">Web wallet</a>
   <div class="stats" id="stats">
@@ -230,6 +241,7 @@ const I18N = {
   en: {},  // English is the source text in the HTML; en = identity
   ru: {
     nav_home:"Главная", nav_mine:"Майнинг", nav_explorer:"Обозреватель", nav_wallet:"Кошелёк",
+    tg_join:"Заходи в наш Telegram", tg_sub:"Новости, помощь по майнингу и комьюнити - @cereblix",
     hero_h1:'Монета, которую майнит <em>процессор</em>.<br>Не видеокарта. Не ASIC. <em>Никогда.</em>',
     hero_p:'Cereblix (CRB) - криптовалюта на новом PoW-алгоритме <b>NeuroMorph</b>: виртуальная машина, которая <b>перепрограммирует сама себя каждые 4096 блоков</b>. Чип, способный её майнить, обязан быть процессором - по определению.',
     hero_cta1:"Начать майнить за 2 минуты", hero_cta2:"Веб-кошелёк",
