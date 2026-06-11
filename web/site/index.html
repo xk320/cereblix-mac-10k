@@ -217,7 +217,6 @@ footer{padding:40px 0;color:var(--mut);font-size:14px;border-top:1px solid var(-
     <div class="stat"><b class="ep-wrap"><span id="s-epoch">…</span><span class="qmark" tabindex="0">?<span class="tip"><b data-i="ep_t">What's an epoch?</b><br><span data-i="ep_b">Every 4096 blocks (~2.8 days) NeuroMorph mutates itself - instruction weights, program length, AES keys and the dataset all change. That moving target is what keeps ASICs out.</span><span class="ep-next" id="epoch-next"></span></span></span></b><span data-i="st_epoch">NeuroMorph epoch</span></div>
     <div class="stat"><b id="s-age" class="sm">…</b><span data-i="st_age">last block</span></div>
   </div>
-  <div class="dna" id="dna" aria-hidden="true"></div>
 </div></div>
 
 <div class="wrap">
@@ -466,7 +465,6 @@ function buildDNA(el, count){
   }
   el.innerHTML = html;
 }
-buildDNA(document.getElementById('dna'), 36);
 buildDNA(document.getElementById('dna2'), 26);
 applyLang(detectLang());
 load();
