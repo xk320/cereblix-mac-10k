@@ -5,111 +5,178 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cereblix (CRB) - CPU-only coin on the NeuroMorph algorithm</title>
 <meta name="description" content="Cereblix - a 2026 cryptocurrency you can mine only on a CPU. Self-mutating NeuroMorph PoW, fair launch with no premine.">
+<meta name="theme-color" content="#06080f">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Cereblix (CRB) - the coin your CPU mines">
+<meta property="og:description" content="A self-mutating NeuroMorph proof-of-work that lives on your processor. No GPU, no ASIC, ever. Fair launch, no premine.">
+<meta property="og:image" content="http://188.34.181.191/cereblix/logo.png">
 <style>
-:root{--bg:#0a0e17;--panel:#111827;--panel2:#1a2336;--acc:#22d3ee;--acc2:#a78bfa;--txt:#e5e7eb;--mut:#8b9bb4;--ok:#34d399}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/spacegrotesk-500.woff2') format('woff2')}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/spacegrotesk-700.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/inter-400.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/inter-500.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/inter-700.woff2') format('woff2')}
+:root{
+  --bg:#06080f;--panel:#0e1424;
+  --glass:rgba(146,180,255,.05);--glass2:rgba(146,180,255,.08);
+  --border:rgba(146,180,255,.13);--border2:rgba(120,200,255,.35);
+  --acc:#22d3ee;--acc2:#a78bfa;--acc3:#38bdf8;
+  --txt:#e8ecf6;--mut:#90a0bd;--ok:#34d399;
+  --fd:'Space Grotesk',system-ui,sans-serif;
+  --grad:linear-gradient(115deg,var(--acc),var(--acc2));
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--txt);font:16px/1.6 system-ui,Segoe UI,Roboto,sans-serif;overflow-x:hidden}
-html{overflow-x:hidden}
-.wrap{max-width:1020px;margin:0 auto;padding:0 18px}
-nav{display:flex;align-items:center;gap:14px;padding:14px 0;flex-wrap:wrap}
-nav .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--txt)}
-.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#06121f;font-size:18px;flex:0 0 auto}
-nav .brand b{font-size:18px}
-nav .links{margin-left:auto;display:flex;align-items:center;gap:15px;flex-wrap:wrap}
-nav .links a{color:var(--mut);text-decoration:none;font-size:14.5px;white-space:nowrap}
-nav .links a:hover,nav .links a.active{color:var(--acc)}
-@media(max-width:560px){nav .links{margin-left:0;width:100%;gap:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}}
-.btn{display:inline-block;background:linear-gradient(135deg,var(--acc),#0ea5e9);color:#06121f;font-weight:700;padding:11px 22px;border-radius:12px;text-decoration:none;cursor:pointer}
-.btn:hover{filter:brightness(1.08)}
-.btn.ghost{background:var(--panel2);color:var(--txt);border:1px solid #2c3a55}
-.tgband{text-align:center;margin:8px 0 4px}
-.tg-btn{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#2AABEE,#229ED9);color:#fff;font-weight:700;font-size:18px;padding:14px 30px;border-radius:14px;text-decoration:none;box-shadow:0 8px 24px rgba(34,158,217,.35)}
-.tg-btn:hover{filter:brightness(1.08)}
-.tg-btn svg{width:24px;height:24px;fill:#fff;flex:0 0 auto}
-.hero-cta{max-width:440px;margin:0 auto 10px;display:flex;flex-direction:column;gap:12px}
+html{overflow-x:hidden;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font:16px/1.65 'Inter',system-ui,Segoe UI,Roboto,sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+[id]{scroll-margin-top:78px}
+a{color:var(--acc)}
+::selection{background:rgba(34,211,238,.28)}
+/* ---- animated background ---- */
+.bg{position:fixed;inset:0;z-index:-2;overflow:hidden;background:
+  radial-gradient(1200px 720px at 50% -12%,#13234a 0%,transparent 60%),
+  radial-gradient(820px 560px at 100% -4%,#1c1440 0%,transparent 55%),
+  radial-gradient(700px 520px at 0% 18%,#08213a 0%,transparent 55%),var(--bg)}
+.aurora{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;will-change:transform}
+.aurora.a1{width:520px;height:520px;background:radial-gradient(circle,#22d3ee,transparent 64%);top:-170px;left:-90px;animation:dr1 24s ease-in-out infinite}
+.aurora.a2{width:480px;height:480px;background:radial-gradient(circle,#a78bfa,transparent 64%);top:-130px;right:-110px;animation:dr2 28s ease-in-out infinite}
+.aurora.a3{width:440px;height:440px;background:radial-gradient(circle,#38bdf8,transparent 64%);top:420px;left:38%;opacity:.22;animation:dr3 32s ease-in-out infinite}
+@keyframes dr1{50%{transform:translate(60px,40px) scale(1.1)}}
+@keyframes dr2{50%{transform:translate(-50px,55px) scale(1.06)}}
+@keyframes dr3{50%{transform:translate(45px,-30px) scale(1.12)}}
+.bg .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(146,180,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(146,180,255,.05) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(1000px 640px at 50% -2%,#000,transparent 76%);mask-image:radial-gradient(1000px 640px at 50% -2%,#000,transparent 76%)}
+.grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.035;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+@media(prefers-reduced-motion:reduce){.aurora{animation:none}}
+.wrap{max-width:1040px;margin:0 auto;padding:0 18px}
+/* ---- logo ---- */
+.logo{flex:0 0 auto;display:block}
+.brand .logo{width:34px;height:34px;filter:drop-shadow(0 4px 13px rgba(34,211,238,.4))}
+/* ---- nav ---- */
+.navwrap{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px) saturate(1.5);-webkit-backdrop-filter:blur(14px) saturate(1.5);background:rgba(6,8,15,.6);border-bottom:1px solid var(--border)}
+nav{display:flex;align-items:center;gap:14px;padding:11px 0;flex-wrap:wrap}
+nav .brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--txt)}
+nav .brand b{font-family:var(--fd);font-size:20px;font-weight:700;letter-spacing:-.01em}
+nav .brand b i{font-style:normal;color:var(--acc2)}
+nav .links{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+nav .links a{color:var(--mut);text-decoration:none;font-size:14.5px;font-weight:500;white-space:nowrap;transition:color .15s}
+nav .links a:hover,nav .links a.active{color:var(--txt)}
+nav .links a.active{color:var(--acc)}
+@media(max-width:560px){nav .links{margin-left:0;width:100%;gap:15px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}}
+.langsw{display:inline-flex;gap:2px;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--glass)}
+.langsw button{background:transparent;color:var(--mut);border:0;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit}
+.langsw button.on{background:var(--grad);color:#06121f}
+/* ---- buttons ---- */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--fd);font-weight:700;font-size:15px;line-height:1.2;padding:12px 22px;border-radius:13px;text-decoration:none;cursor:pointer;color:#06121f;background:var(--grad);box-shadow:0 8px 22px -6px rgba(34,211,238,.5);transition:transform .15s,box-shadow .15s,filter .15s;border:0}
+.btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -6px rgba(34,211,238,.62);filter:brightness(1.05)}
+.btn.ghost{background:var(--glass);color:var(--txt);border:1px solid var(--border);box-shadow:none;backdrop-filter:blur(6px)}
+.btn.ghost:hover{border-color:var(--border2);box-shadow:0 8px 22px -8px rgba(34,211,238,.45)}
+.tg-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#2AABEE,#229ED9);color:#fff;font-family:var(--fd);font-weight:700;font-size:17px;padding:14px 30px;border-radius:14px;text-decoration:none;box-shadow:0 10px 26px -6px rgba(34,158,217,.5);transition:transform .15s,box-shadow .15s,filter .15s}
+.tg-btn:hover{transform:translateY(-2px);filter:brightness(1.07);box-shadow:0 16px 32px -6px rgba(34,158,217,.6)}
+.tg-btn svg{width:23px;height:23px;fill:#fff;flex:0 0 auto}
+.hero-cta{max-width:460px;margin:0 auto 12px;display:flex;flex-direction:column;gap:12px}
 .cta-row{display:flex;gap:12px}
-.cta-row .btn{flex:1 1 0;margin:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:13px 14px;font-size:15px;line-height:1.25}
-.tg-btn.full{width:100%;justify-content:center}
-.tgband .h{color:var(--mut);font-size:14px;margin-top:8px}
-nav .btn{margin-left:auto}
-.langsw{display:inline-flex;gap:2px;border:1px solid #2c3a55;border-radius:8px;overflow:hidden;margin-left:10px}
-.langsw button{background:var(--panel2);color:var(--mut);border:0;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:600}
-.langsw button.on{background:var(--acc);color:#06121f}
-.hero{padding:64px 0 36px;text-align:center;background:radial-gradient(900px 420px at 50% -20%,#15244a 0%,transparent 70%)}
-.hero h1{font-size:46px;line-height:1.15;max-width:860px;margin:0 auto 18px}
-.hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero p{color:var(--mut);max-width:700px;margin:0 auto 28px;font-size:18px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:12px;margin:36px 0}
-.stat{background:var(--panel);border:1px solid #233047;border-radius:14px;padding:16px 8px;text-align:center}
-.stat b{display:block;font-size:20px;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cta-row .btn{flex:1 1 0;padding:14px;font-size:15px;text-align:center}
+.tg-btn.full{width:100%}
+/* ---- hero ---- */
+.hero{position:relative;padding:74px 0 34px;text-align:center}
+.hero-logo{display:flex;justify-content:center;margin-bottom:22px}
+.hero-logo .logo{width:64px;height:64px;filter:drop-shadow(0 8px 26px rgba(123,167,255,.5))}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:6px 15px;border-radius:999px;background:var(--glass);border:1px solid var(--border);font-size:13px;font-weight:500;color:var(--mut);margin-bottom:22px;backdrop-filter:blur(6px)}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 9px var(--ok);animation:pulse 2.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hero h1{font-family:var(--fd);font-size:clamp(33px,6vw,58px);font-weight:700;line-height:1.07;letter-spacing:-.025em;max-width:920px;margin:0 auto 20px}
+.hero h1 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--mut);max-width:680px;margin:0 auto 30px;font-size:clamp(15px,2.2vw,19px)}
+/* ---- stats ---- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:13px;margin:42px 0 6px}
+.stat{position:relative;background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:18px 10px;text-align:center;backdrop-filter:blur(8px);overflow:hidden;transition:transform .2s,border-color .2s}
+.stat::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--grad);opacity:.75}
+.stat:hover{transform:translateY(-3px);border-color:var(--border2)}
+.stat b{display:block;font-family:var(--fd);font-size:21px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat b.sm{font-size:18px}
-.stat span{color:var(--mut);font-size:13px}
+.stat span{color:var(--mut);font-size:12.5px}
 .stat b.ep-wrap{overflow:visible;white-space:nowrap}
-#s-epoch{font-size:24px;font-weight:800;color:var(--acc)}
+#s-epoch{font-family:var(--fd);font-size:24px;font-weight:700;color:var(--acc)}
 .stat .qmark{font-size:11px}
-.qmark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#2c3a55;color:var(--acc);font-size:11px;font-weight:700;cursor:help;margin-left:5px;position:relative;vertical-align:middle}
+.qmark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--glass2);border:1px solid var(--border);color:var(--acc);font-size:11px;font-weight:700;cursor:help;margin-left:5px;position:relative;vertical-align:middle}
 .qmark .tip{display:none;position:absolute;bottom:150%;right:-6px;left:auto;width:min(248px,80vw);background:#0c1322;border:1px solid var(--acc);border-radius:10px;padding:11px 13px;font-size:12.5px;font-weight:400;color:var(--txt);line-height:1.5;z-index:20;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.55);white-space:normal}
 .qmark .tip b{color:var(--acc)}
 .qmark .tip .ep-next{display:block;margin-top:7px;color:var(--acc2);font-weight:600}
 .qmark:hover .tip,.qmark:focus .tip{display:block}
-section{padding:44px 0}
-h2{font-size:30px;margin-bottom:22px}
-h2 em{font-style:normal;color:var(--acc)}
+/* ---- sections ---- */
+section{padding:54px 0;position:relative}
+h2{font-family:var(--fd);font-size:clamp(26px,4vw,34px);font-weight:700;letter-spacing:-.02em;margin-bottom:24px}
+h2 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:16px}
-.card{background:var(--panel);border:1px solid #233047;border-radius:16px;padding:22px}
-.card h3{font-size:18px;margin-bottom:10px}
-.card h3 .ico{margin-right:8px}
+.card{position:relative;background:var(--glass);border:1px solid var(--border);border-radius:18px;padding:24px;backdrop-filter:blur(8px);overflow-x:auto;transition:transform .2s,border-color .2s}
+.grid .card:hover{transform:translateY(-3px);border-color:var(--border2)}
+.card h3{font-family:var(--fd);font-size:18px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+.card h3 .ico{font-size:21px;flex:0 0 auto}
 .card p{color:var(--mut);font-size:15px}
+/* ---- mine hub ---- */
 .mine-choose{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:16px;margin-bottom:22px}
-.mine-card{display:block;background:var(--panel);border:1px solid #233047;border-radius:16px;padding:22px;text-decoration:none;color:var(--txt);transition:border-color .15s,transform .15s}
-.mine-card:hover{border-color:var(--acc);transform:translateY(-2px)}
+.mine-card{position:relative;display:block;background:var(--glass);border:1px solid var(--border);border-radius:18px;padding:24px;text-decoration:none;color:var(--txt);backdrop-filter:blur(8px);overflow:hidden;transition:border-color .15s,transform .15s}
+.mine-card::before{content:"";position:absolute;inset:0;background:radial-gradient(420px 160px at 50% 0%,rgba(34,211,238,.1),transparent 70%);opacity:0;transition:opacity .2s}
+.mine-card:hover{border-color:var(--border2);transform:translateY(-3px)}
+.mine-card:hover::before{opacity:1}
 .mine-card .mc-ic{font-size:34px;margin-bottom:6px}
-.mine-card b{font-size:18px;display:block}
+.mine-card b{font-family:var(--fd);font-size:18px;display:block}
 .mine-card p{color:var(--mut);font-size:14.5px;margin:8px 0 12px}
 .mine-card .mc-go{color:var(--acc);font-weight:700;font-size:14.5px}
+/* ---- steps ---- */
 .steps{counter-reset:s}
-.step{display:flex;gap:16px;margin-bottom:18px;background:var(--panel);border:1px solid #233047;border-radius:14px;padding:18px}
+.step{display:flex;gap:16px;margin-bottom:18px;background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:18px;backdrop-filter:blur(8px)}
 .step>div{min-width:0;flex:1}
 .step pre{max-width:100%}
-.step::before{counter-increment:s;content:counter(s);min-width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#06121f;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-code,pre{font-family:ui-monospace,Consolas,monospace;background:#0c1322;border-radius:8px}
-code{padding:2px 7px;font-size:14px;word-break:break-all}
-pre{padding:14px;overflow-x:auto;font-size:13.5px;border:1px solid #233047;margin:10px 0}
-.card{overflow-x:auto}
+.step::before{counter-increment:s;content:counter(s);min-width:34px;height:34px;border-radius:50%;background:var(--grad);color:#06121f;font-family:var(--fd);font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 6px 16px -4px rgba(34,211,238,.5)}
+code,pre{font-family:ui-monospace,Consolas,monospace;background:#0b1120;border-radius:8px}
+code{padding:2px 7px;font-size:14px;word-break:break-all;border:1px solid var(--border)}
+pre{padding:14px;overflow-x:auto;font-size:13.5px;border:1px solid var(--border);margin:10px 0}
+b{font-weight:700}
+.step b,.card h3,.mine-card b{color:var(--txt)}
 table{width:100%;border-collapse:collapse;font-size:15px}
-td,th{padding:10px 8px;border-bottom:1px solid #1f2b42;text-align:left}
-th{color:var(--mut)}
-.faq details{background:var(--panel);border:1px solid #233047;border-radius:12px;padding:14px 18px;margin-bottom:10px}
-.faq summary{cursor:pointer;font-weight:600}
+td,th{padding:11px 8px;border-bottom:1px solid var(--border);text-align:left}
+th{color:var(--mut);font-weight:600}
+.faq details{background:var(--glass);border:1px solid var(--border);border-radius:14px;padding:15px 18px;margin-bottom:10px;backdrop-filter:blur(8px)}
+.faq summary{cursor:pointer;font-weight:600;font-family:var(--fd)}
 .faq p{color:var(--mut);margin-top:10px;font-size:15px}
-footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b42;margin-top:30px}
-.warn{background:#241a3a;border:1px solid #4c3a7a;border-radius:12px;padding:14px 18px;font-size:14.5px;color:#cbd5e1;margin-top:18px}
+footer{padding:40px 0;color:var(--mut);font-size:14px;border-top:1px solid var(--border);margin-top:34px}
+.warn{background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(34,211,238,.06));border:1px solid var(--border2);border-radius:14px;padding:14px 18px;font-size:14.5px;color:#cbd5e1;margin-top:18px;backdrop-filter:blur(6px)}
 /* DNA double helix - the "-lix" (helix) in Cereblix, the self-mutating chain */
-.dna{display:flex;justify-content:center;align-items:center;gap:7px;height:64px;margin:30px 0 8px;overflow:hidden}
+.dna{display:flex;justify-content:center;align-items:center;gap:7px;height:64px;margin:26px 0 8px;overflow:hidden}
 .dna .bp{position:relative;width:3px;height:46px;flex:0 0 auto}
 .dna .bp i{position:absolute;left:50%;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;animation:dna 3s ease-in-out infinite}
-.dna .bp i.a{background:var(--acc);animation-name:dnaA}
-.dna .bp i.b{background:var(--acc2);animation-name:dnaB}
+.dna .bp i.a{background:var(--acc);animation-name:dnaA;box-shadow:0 0 8px rgba(34,211,238,.6)}
+.dna .bp i.b{background:var(--acc2);animation-name:dnaB;box-shadow:0 0 8px rgba(167,139,250,.6)}
 .dna .bp s{position:absolute;left:50%;top:50%;width:1px;height:0;margin-left:-0.5px;background:linear-gradient(var(--acc),var(--acc2));opacity:.25;transform:translateY(-50%);animation:dnaR 3s ease-in-out infinite}
 @keyframes dnaA{0%,100%{top:0;transform:scale(1);opacity:1}50%{top:37px;transform:scale(.55);opacity:.45}}
 @keyframes dnaB{0%,100%{top:37px;transform:scale(.55);opacity:.45}50%{top:0;transform:scale(1);opacity:1}}
 @keyframes dnaR{0%,100%{height:37px;top:4px}50%{height:6px;top:20px}}
-.naming{background:linear-gradient(135deg,#13182a,#0c1322);border:1px solid #233047;border-radius:16px;padding:26px}
-.naming .word{font-size:34px;font-weight:800;letter-spacing:.5px;text-align:center;margin-bottom:6px}
+.naming{position:relative;background:linear-gradient(135deg,rgba(167,139,250,.1),rgba(12,19,34,.6));border:1px solid var(--border);border-radius:20px;padding:28px;backdrop-filter:blur(8px);overflow:hidden}
+.naming .word{font-family:var(--fd);font-size:clamp(30px,7vw,40px);font-weight:700;letter-spacing:-.01em;text-align:center;margin-bottom:6px}
 .naming .word .cere{color:var(--acc)}.naming .word .lix{color:var(--acc2)}
 .naming .gloss{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
-.naming .gloss div{background:#0c1322;border:1px solid #233047;border-radius:12px;padding:14px}
-.naming .gloss b{color:var(--txt)}.naming .gloss p{color:var(--mut);font-size:14px;margin-top:4px}
-.naming .tag2{text-align:center;color:var(--mut);font-size:14px;margin-top:16px}
+.naming .gloss div{background:rgba(12,19,34,.55);border:1px solid var(--border);border-radius:14px;padding:16px}
+.naming .gloss b{font-family:var(--fd);color:var(--txt)}.naming .gloss p{color:var(--mut);font-size:14px;margin-top:5px}
+.naming .tag2{text-align:center;color:var(--mut);font-size:14.5px;margin-top:18px}
 .naming .tag2 b{color:var(--acc)}
 @media(max-width:560px){.naming .gloss{grid-template-columns:1fr}}
-@media(max-width:640px){.hero h1{font-size:32px}}
+@media(max-width:560px){.aurora{filter:blur(70px)}.aurora.a3{display:none}}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="bg" aria-hidden="true"><div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div><div class="grid"></div></div>
+<div class="grain" aria-hidden="true"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="lg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+</defs></svg>
+
+<div class="navwrap"><div class="wrap">
 <nav>
-  <a class="brand" href="./"><span class="logo">₢</span><b>Cereblix</b></a>
+  <a class="brand" href="./">
+    <svg class="logo" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="11" fill="url(#lg)"/><path d="M14 8C27 13 27 16 20 20 13 24 13 27 26 32" stroke="#06121f" stroke-width="2.5" stroke-linecap="round"/><path d="M26 8C13 13 13 16 20 20 27 24 27 27 14 32" stroke="#06121f" stroke-width="2.5" stroke-linecap="round"/><path d="M16.5 11.2H23.5M16.5 28.8H23.5" stroke="#06121f" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="20" cy="20" r="1.9" fill="#06121f"/></svg>
+    <b>Cereb<i>lix</i></b>
+  </a>
   <div class="links">
     <a href="./" class="active" data-i="nav_home">Home</a>
     <a href="#mine" data-i="nav_mine">Mine</a>
@@ -119,9 +186,13 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
     <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
   </div>
 </nav>
-</div>
+</div></div>
 
 <div class="hero"><div class="wrap">
+  <div class="hero-logo">
+    <svg class="logo" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="11" fill="url(#lg)"/><path d="M14 8C27 13 27 16 20 20 13 24 13 27 26 32" stroke="#06121f" stroke-width="2.5" stroke-linecap="round"/><path d="M26 8C13 13 13 16 20 20 27 24 27 27 14 32" stroke="#06121f" stroke-width="2.5" stroke-linecap="round"/><path d="M16.5 11.2H23.5M16.5 28.8H23.5" stroke="#06121f" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="20" cy="20" r="1.9" fill="#06121f"/></svg>
+  </div>
+  <div class="badge"><span class="dot"></span><span data-i="hero_badge">Network live · fair launch, no premine</span></div>
   <h1 data-i-html="hero_h1">A coin your <em>CPU</em> mines.<br>Not a GPU. Not an ASIC. <em>Ever.</em></h1>
   <p data-i-html="hero_p">Cereblix (CRB) is a cryptocurrency on the new <b>NeuroMorph</b> PoW algorithm: a virtual machine that <b>reprograms itself every 4096 blocks</b>. A chip able to mine it has to be a processor - by definition.</p>
   <div class="hero-cta">
@@ -269,6 +340,7 @@ const I18N = {
   ru: {
     nav_home:"Главная", nav_mine:"Майнинг", nav_explorer:"Обозреватель", nav_wallet:"Кошелёк",
     tg_join:"Заходи в наш Telegram", tg_sub:"Новости, помощь по майнингу и комьюнити - @cereblix",
+    hero_badge:"Сеть в эфире · честный запуск, без премайна",
     hero_h1:'Монета, которую майнит <em>процессор</em>.<br>Не видеокарта. Не ASIC. <em>Никогда.</em>',
     hero_p:'Cereblix (CRB) - криптовалюта на новом PoW-алгоритме <b>NeuroMorph</b>: виртуальная машина, которая <b>перепрограммирует сама себя каждые 4096 блоков</b>. Чип, способный её майнить, обязан быть процессором - по определению.',
     hero_cta1:"Начать майнить за 2 минуты", hero_cta2:"Веб-кошелёк",

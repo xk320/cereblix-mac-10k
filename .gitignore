@@ -8,6 +8,18 @@ NETWORK_WALLET.txt
 tools/srv.py
 # OPERATIONS.md is the private runbook (server, deploy, keys) - never publish
 OPERATIONS.md
+# local-only operational scripts: embed secrets (TG bot token, a test private
+# key) or reference private server internals - never publish
+tools/tg-send.sh
+tools/tg-post.sh
+tools/test-freefee.py
+tools/whoip.sh
+tools/whomines.sh
+tools/whonow.sh
+tools/audit.sh
+tools/fw.sh
+tools/caption.txt
+logo/
 
 # Wallets & chain data
 wallet.json
