@@ -26,6 +26,10 @@ nav .links a:hover,nav .links a.active{color:var(--acc)}
 .tg-btn{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#2AABEE,#229ED9);color:#fff;font-weight:700;font-size:18px;padding:14px 30px;border-radius:14px;text-decoration:none;box-shadow:0 8px 24px rgba(34,158,217,.35)}
 .tg-btn:hover{filter:brightness(1.08)}
 .tg-btn svg{width:24px;height:24px;fill:#fff;flex:0 0 auto}
+.hero-cta{max-width:440px;margin:0 auto 10px;display:flex;flex-direction:column;gap:12px}
+.cta-row{display:flex;gap:12px}
+.cta-row .btn{flex:1 1 0;margin:0;text-align:center;justify-content:center;padding:13px 14px;font-size:15px}
+.tg-btn.full{width:100%;justify-content:center}
 .tgband .h{color:var(--mut);font-size:14px;margin-top:8px}
 nav .btn{margin-left:auto}
 .langsw{display:inline-flex;gap:2px;border:1px solid #2c3a55;border-radius:8px;overflow:hidden;margin-left:10px}
@@ -113,14 +117,16 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
 <div class="hero"><div class="wrap">
   <h1 data-i-html="hero_h1">A coin your <em>CPU</em> mines.<br>Not a GPU. Not an ASIC. <em>Ever.</em></h1>
   <p data-i-html="hero_p">Cereblix (CRB) is a cryptocurrency on the new <b>NeuroMorph</b> PoW algorithm: a virtual machine that <b>reprograms itself every 4096 blocks</b>. A chip able to mine it has to be a processor - by definition.</p>
-  <div class="tgband" style="margin:0 0 18px">
-    <a class="tg-btn" href="https://t.me/cereblix" target="_blank" rel="noopener">
+  <div class="hero-cta">
+    <div class="cta-row">
+      <a class="btn" href="#mine" data-i="hero_cta1">Start mining in 2 minutes</a>
+      <a class="btn ghost" href="wallet/" data-i="hero_cta2">Web wallet</a>
+    </div>
+    <a class="tg-btn full" href="https://t.me/cereblix" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
       <span data-i="tg_join">Join our Telegram</span>
     </a>
   </div>
-  <a class="btn" href="#mine" data-i="hero_cta1">Start mining in 2 minutes</a>&nbsp;
-  <a class="btn ghost" href="wallet/" data-i="hero_cta2">Web wallet</a>
   <div class="stats" id="stats">
     <div class="stat"><b id="s-height">…</b><span data-i="st_height">block height</span></div>
     <div class="stat"><b id="s-hashrate">…</b><span data-i="st_hashrate">network hashrate</span></div>
