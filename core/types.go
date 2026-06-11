@@ -1,6 +1,6 @@
 // Package core implements Cereblix chain data structures and consensus rules.
 // Note: protocol literals below ("cerebra-tx-v1", the genesis message, etc.)
-// are consensus-critical and intentionally keep their original spelling — the
+// are consensus-critical and intentionally keep their original spelling - the
 // live chain's hashes and signatures depend on them. Only the brand changed.
 package core
 

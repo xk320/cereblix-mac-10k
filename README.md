@@ -1,7 +1,7 @@
 # Cereblix (CRB)
 
 **A CPU-only cryptocurrency built from scratch on the self-mutating NeuroMorph
-proof-of-work algorithm.** No GPU, no ASIC — ever. One CPU, one vote.
+proof-of-work algorithm.** No GPU, no ASIC - ever. One CPU, one vote.
 
 - 🌐 Site & explorer: http://188.34.181.191/cereblix/
 - 💼 Web wallet: http://188.34.181.191/cereblix/wallet/
@@ -9,7 +9,7 @@ proof-of-work algorithm.** No GPU, no ASIC — ever. One CPU, one vote.
 
 > ⚗️ Experimental software, launched in a single day with **zero premine, zero
 > fund, zero promises**. NeuroMorph is a new algorithm without years of external
-> audit. The coin has no price — it only gets value from demand that may never
+> audit. The coin has no price - it only gets value from demand that may never
 > appear. Don't invest what you can't lose. DYOR.
 
 ---
@@ -17,12 +17,12 @@ proof-of-work algorithm.** No GPU, no ASIC — ever. One CPU, one vote.
 ## Why Cereblix
 
 - **🧬 Self-mutating algorithm.** Every 4096 blocks (~2.8 days) NeuroMorph
-  rebuilds its own VM semantics from chain entropy — opcode weights, program
+  rebuilds its own VM semantics from chain entropy - opcode weights, program
   length, constants, AES keys all change. Fixed-function hardware for an
   algorithm that doesn't exist yet is impossible. That is lifelong ASIC
   resistance by construction, not by promise.
 - **⚖️ 1 CPU = 1 vote.** Random programs with data-dependent branches starve
-  GPUs (warp divergence) — any laptop competes. No farms.
+  GPUs (warp divergence) - any laptop competes. No farms.
 - **🤝 Fair launch.** Empty genesis block, coins exist only from mining.
 - **📡 Lightweight node.** One dependency-free Go binary; the chain is
   human-readable JSONL.
@@ -32,7 +32,7 @@ proof-of-work algorithm.** No GPU, no ASIC — ever. One CPU, one vote.
 | | |
 |---|---|
 | Ticker | CRB (1 CRB = 10⁸ synapses) |
-| Algorithm | NeuroMorph v1 — self-mutating PoW VM, CPU-only |
+| Algorithm | NeuroMorph v1 - self-mutating PoW VM, CPU-only |
 | Block time | 60 s, retarget every 20 blocks |
 | Reward | 50 CRB, halving every 1,051,200 blocks (~2 years) |
 | Max supply | ~105,120,000 CRB |
@@ -72,7 +72,7 @@ cereblix-miner -addr crb1YOURADDRESS            # uses all cores
 cereblix-miner -addr crb1YOURADDRESS -threads 4 # limit cores
 ```
 
-> Antivirus software often flags unsigned CPU miners as PUA — add an exclusion
+> Antivirus software often flags unsigned CPU miners as PUA - add an exclusion
 > for the miner file rather than disabling protection.
 
 ## Run a full node

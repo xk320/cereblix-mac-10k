@@ -1,7 +1,7 @@
 // cereblix-wallet is the standalone Cereblix wallet: a local key store plus a
 // thin RPC client and block explorer. Like bitcoin-cli it needs a node to talk
 // to (the public seed by default, or your own with -node), but the keys live
-// only on your machine — it does not depend on the website.
+// only on your machine - it does not depend on the website.
 //
 // Run with no command for an interactive shell, or pass a one-shot command for
 // scripting:
@@ -328,7 +328,7 @@ func main() {
 }
 
 func interactive() {
-	fmt.Println("Cereblix wallet — interactive shell. Type 'help' for commands, 'quit' to exit.")
+	fmt.Println("Cereblix wallet - interactive shell. Type 'help' for commands, 'quit' to exit.")
 	fmt.Printf("wallet: %s | node: %s | %d address(es)\n", walletPath, nodeURL, len(store.keys))
 	if len(store.keys) == 0 {
 		fmt.Println("No addresses yet. Run 'new' to create one.")
@@ -442,7 +442,7 @@ Explorer commands:
 
 func cmdList() error {
 	if len(store.keys) == 0 {
-		fmt.Println("(no addresses — run 'new')")
+		fmt.Println("(no addresses - run 'new')")
 		return nil
 	}
 	var total uint64
@@ -650,7 +650,7 @@ func cmdEncrypt() error {
 		return errors.New("wallet is already encrypted")
 	}
 	if len(store.keys) == 0 {
-		return errors.New("nothing to encrypt — create an address first")
+		return errors.New("nothing to encrypt - create an address first")
 	}
 	p1 := getPassphrase("New passphrase: ")
 	p2 := getPassphrase("Repeat passphrase: ")
@@ -796,7 +796,7 @@ func cmdMempool() error {
 		return err
 	}
 	if len(txs) == 0 {
-		fmt.Println("mempool is empty — all transactions confirmed")
+		fmt.Println("mempool is empty - all transactions confirmed")
 		return nil
 	}
 	fmt.Printf("%d unconfirmed transaction(s):\n", len(txs))

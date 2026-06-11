@@ -1,4 +1,4 @@
-// Package neuromorph implements NeuroMorph PoW v1 — a CPU-only proof of work.
+// Package neuromorph implements NeuroMorph PoW v1 - a CPU-only proof of work.
 //
 // Core ideas:
 //   - Per-nonce random programs executed by a register VM (16 int regs,
@@ -33,7 +33,7 @@ const (
 	// regenerated each epoch from the epoch seed and shared across all threads,
 	// is touched by a chain of data-dependent random reads in every hash. The
 	// address chain depends on the values read, so accesses cannot be
-	// prefetched — the hash is bound to DRAM latency, forcing any ASIC to carry
+	// prefetched - the hash is bound to DRAM latency, forcing any ASIC to carry
 	// 64 MiB of real random-access memory (it cannot fit cheap on-die SRAM).
 	DatasetBytes        = 64 << 20 // 64 MiB
 	datasetWords        = DatasetBytes / 8

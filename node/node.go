@@ -209,6 +209,11 @@ func (n *Node) SyncLoop() {
 }
 
 func (n *Node) syncWithPeer(peer string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("sync: recovered from panic on peer %s: %v", peer, rec)
+		}
+	}()
 	var their tipInfo
 	if err := n.getJSON(peer+"/p2p/tip", &their); err != nil {
 		return
@@ -725,6 +730,13 @@ func (n *Node) Mine(threads int, coinbase string) {
 }
 
 func (n *Node) mineWorker(id uint64, coinbase string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("miner: worker %d recovered from panic: %v; restarting", id, rec)
+			time.Sleep(time.Second)
+			go n.mineWorker(id, coinbase)
+		}
+	}()
 	var vm *nm.VM
 	var vmEpoch uint64 = ^uint64(0)
 	for {
@@ -775,15 +787,48 @@ func putNonce(header []byte, nonce uint64) {
 
 // ---------------------------------------------------------------- serving
 
+// maxRequestBytes caps any single request body. Blocks/txs are tiny; this
+// stops a peer from exhausting memory with a giant POST.
+const maxRequestBytes = 8 << 20 // 8 MiB
+
+// harden wraps a handler with a body-size cap and a panic guard so that no
+// single malformed request can crash the node or exhaust its memory.
+func harden(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("recovered from handler panic: %v", rec)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+			}
+		}()
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
+		h.ServeHTTP(w, r)
+	})
+}
+
+// newServer builds an http.Server with timeouts that defeat slow-loris and
+// idle-socket exhaustion attacks (ListenAndServe's default has none).
+func newServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           harden(h),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 16, // 64 KiB
+	}
+}
+
 func (n *Node) Serve(p2pAddr, rpcAddr string) error {
 	errc := make(chan error, 2)
 	go func() {
 		log.Printf("p2p listening on %s", p2pAddr)
-		errc <- http.ListenAndServe(p2pAddr, n.P2PHandler())
+		errc <- newServer(p2pAddr, n.P2PHandler()).ListenAndServe()
 	}()
 	go func() {
 		log.Printf("rpc listening on %s", rpcAddr)
-		errc <- http.ListenAndServe(rpcAddr, n.RPCHandler())
+		errc <- newServer(rpcAddr, n.RPCHandler()).ListenAndServe()
 	}()
 	go n.SyncLoop()
 	return <-errc

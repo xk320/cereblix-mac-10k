@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cereblix Explorer — CRB blockchain explorer</title>
+<title>Cereblix Explorer - CRB blockchain explorer</title>
 <style>
 :root{--bg:#0a0e17;--panel:#111827;--panel2:#1a2336;--acc:#22d3ee;--acc2:#a78bfa;--txt:#e5e7eb;--mut:#8b9bb4;--ok:#34d399;--err:#f87171}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -91,7 +91,7 @@ const T = {
     tx:"Transaction",status:"status",pending:"in mempool (0 conf.)",confirmedin:"confirmations in block",time:"time",coinbase:"coinbase (issuance)",
     address:"Address",balance:"balance",received:"received",mined:"mined",sent:"sent",ntx:"transactions",nonce2:"nonce",txhist:"Transaction history",
     notx:"no transactions",send:"send",recv:"receive",mining:"mining",page:"page",of:"of",newer:"← newer",older:"older →",
-    rich_t:"Richest addresses",share:"share",you:"you",mp_t:"Mempool (unconfirmed)",mp_empty:"mempool is empty — all transactions confirmed",
+    rich_t:"Richest addresses",share:"share",you:"you",mp_t:"Mempool (unconfirmed)",mp_empty:"mempool is empty - all transactions confirmed",
     notfound:"Nothing found",copy:"copy"},
   ru:{about:"О проекте",explorer:"Обозреватель",rich:"Богатейшие",mempool:"Мемпул",wallet:"Кошелёк",find:"Найти",
     ph:"Поиск: высота / хэш блока / txid / адрес crb1…",
@@ -103,7 +103,7 @@ const T = {
     tx:"Транзакция",status:"статус",pending:"в мемпуле (0 подтв.)",confirmedin:"подтверждений в блоке",time:"время",coinbase:"coinbase (эмиссия)",
     address:"Адрес",balance:"баланс",received:"получено",mined:"намайнено",sent:"отправлено",ntx:"транзакций",nonce2:"nonce",txhist:"История транзакций",
     notx:"нет транзакций",send:"отправка",recv:"получение",mining:"майнинг",page:"стр.",of:"из",newer:"← новее",older:"старее →",
-    rich_t:"Богатейшие адреса",share:"доля",you:"вы",mp_t:"Мемпул (неподтверждённые)",mp_empty:"мемпул пуст — все транзакции подтверждены",
+    rich_t:"Богатейшие адреса",share:"доля",you:"вы",mp_t:"Мемпул (неподтверждённые)",mp_empty:"мемпул пуст - все транзакции подтверждены",
     notfound:"Ничего не найдено",copy:"копировать"}
 };
 let LANG = (function(){ const s=localStorage.getItem('lang'); return (s==='ru'||s==='en')?s:((navigator.language||'en').toLowerCase().startsWith('ru')?'ru':'en'); })();
