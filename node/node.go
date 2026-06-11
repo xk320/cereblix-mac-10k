@@ -414,25 +414,40 @@ func (n *Node) RPCHandler() http.Handler {
 		tip := n.Chain.Tip()
 		tgt, _ := tip.TargetInt()
 		diff := core.WorkOf(tgt)
-		// Network hashrate estimate over the retarget window.
+		// Network hashrate estimate over a short recent window (~8 blocks) so it
+		// reacts quickly when miners join or leave. The window is the time
+		// actually elapsed, including the gap since the last block, so a sudden
+		// drop in mining is reflected within a block or two rather than 20.
 		var hashrate float64
 		hgt := n.Chain.Height()
-		if hgt >= 2 {
-			w0 := uint64(core.RetargetWindow)
+		now := uint64(time.Now().Unix())
+		if hgt >= 1 {
+			const hrWindow = 8
+			w0 := uint64(hrWindow)
 			if hgt < w0 {
 				w0 = hgt
 			}
 			first := n.Chain.BlockAt(hgt - w0)
-			dt := float64(tip.Time) - float64(first.Time)
-			if dt > 0 {
-				work := new(big.Int)
-				for i := hgt - w0 + 1; i <= hgt; i++ {
-					t, _ := n.Chain.BlockAt(i).TargetInt()
-					work.Add(work, core.WorkOf(t))
-				}
-				wf, _ := new(big.Float).SetInt(work).Float64()
-				hashrate = wf / dt
+			work := new(big.Int)
+			for i := hgt - w0 + 1; i <= hgt; i++ {
+				t, _ := n.Chain.BlockAt(i).TargetInt()
+				work.Add(work, core.WorkOf(t))
 			}
+			// Elapsed time = window span, but never less than time since the
+			// last block (an overdue block drags the estimate down in real time).
+			dt := float64(tip.Time) - float64(first.Time)
+			if sinceTip := float64(now) - float64(tip.Time); sinceTip > dt {
+				dt = sinceTip
+			}
+			if dt < 1 {
+				dt = 1
+			}
+			wf, _ := new(big.Float).SetInt(work).Float64()
+			hashrate = wf / dt
+		}
+		blockAge := int64(now) - int64(tip.Time)
+		if blockAge < 0 {
+			blockAge = 0
 		}
 		_, epoch := n.Chain.EpochSeedForNext()
 		writeJSON(w, map[string]any{
@@ -447,6 +462,8 @@ func (n *Node) RPCHandler() http.Handler {
 			"epoch":      epoch,
 			"reward":     core.BlockSubsidy(tip.Height + 1),
 			"hashrate":   hashrate,
+			"block_age":  blockAge,
+			"now":        now,
 		})
 	})
 

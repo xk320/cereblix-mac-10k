@@ -24,7 +24,8 @@ nav .btn{margin-left:auto}
 .hero p{color:var(--mut);max-width:680px;margin:0 auto 28px;font-size:18px}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:36px 0}
 .stat{background:var(--panel);border:1px solid #233047;border-radius:14px;padding:16px;text-align:center}
-.stat b{display:block;font-size:24px;color:var(--acc)}
+.stat b{display:block;font-size:24px;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat b.sm{font-size:18px}
 .stat span{color:var(--mut);font-size:13px}
 section{padding:44px 0}
 h2{font-size:30px;margin-bottom:22px}
@@ -55,7 +56,7 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
 <div class="wrap">
 <nav>
   <div class="logo">₢</div><b>Cerebra</b>
-  <a href="#why">Почему CRB</a><a href="#algo">NeuroMorph</a><a href="#mine">Майнинг</a><a href="#spec">Параметры</a><a href="#faq">FAQ</a>
+  <a href="#why">Почему CRB</a><a href="#algo">NeuroMorph</a><a href="#mine">Майнинг</a><a href="explorer.html">Обозреватель</a><a href="https://github.com/Cerebra-CBR/cerebra" target="_blank" rel="noopener">GitHub</a><a href="#faq">FAQ</a>
   <a class="btn" href="wallet/">Открыть кошелёк</a>
 </nav>
 </div>
@@ -72,6 +73,7 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
     <div class="stat"><b id="s-supply">…</b><span>CRB в обращении</span></div>
     <div class="stat"><b id="s-reward">…</b><span>награда за блок</span></div>
     <div class="stat"><b id="s-epoch">…</b><span>эпоха NeuroMorph</span></div>
+    <div class="stat"><b id="s-age" class="sm">…</b><span>последний блок</span></div>
   </div>
 </div></div>
 
@@ -114,16 +116,17 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
   <div class="steps">
     <div class="step"><div><b>Создайте кошелёк</b><br><span style="color:var(--mut)">Откройте <a href="wallet/">веб-кошелёк</a>, нажмите «Создать», сохраните приватный ключ и скопируйте адрес <code>crb1…</code></span></div></div>
     <div class="step"><div><b>Скачайте майнер</b><br><span style="color:var(--mut)">
-      <a href="downloads/cerebra-miner-windows-amd64.exe">Windows x64</a> ·
-      <a href="downloads/cerebra-miner-linux-amd64">Linux x64</a>
-      &nbsp;(Intel и AMD; исходники — <a href="downloads/cerebra-src.tar.gz">cerebra-src.tar.gz</a>)</span></div></div>
+      Свежие сборки — на <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>:
+      <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebra-miner-windows-amd64.exe">Windows x64</a> ·
+      <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebra-miner-linux-amd64">Linux x64</a>
+      &nbsp;(Intel и AMD; код открыт — <a href="https://github.com/Cerebra-CBR/cerebra" target="_blank" rel="noopener">github.com/Cerebra-CBR/cerebra</a>)</span></div></div>
     <div class="step"><div><b>Запустите</b>
       <pre>cerebra-miner-windows-amd64.exe -addr crb1ВАШ_АДРЕС</pre>
       <span style="color:var(--mut)">По умолчанию используются все ядра; ограничить: <code>-threads 4</code>. Майнер сам подключится к публичной ноде. Нашли блок — 50 CRB упали на адрес. Баланс виден в кошельке через ~минуту.</span></div></div>
     <div class="step"><div><b>(Необязательно) Поднимите свою ноду</b>
       <pre>cerebrad -datadir ./data
 cerebra-miner -node http://127.0.0.1:18751/api -addr crb1ВАШ_АДРЕС</pre>
-      <span style="color:var(--mut)">Своя нода = свой голос в сети и независимая проверка цепи. Скачать: <a href="downloads/cerebrad-linux-amd64">Linux</a> · <a href="downloads/cerebrad-windows-amd64.exe">Windows</a></span></div></div>
+      <span style="color:var(--mut)">Своя нода = свой голос в сети и независимая проверка цепи. Скачать: <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebrad-linux-amd64">Linux</a> · <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebrad-windows-amd64.exe">Windows</a> · или собрать из <a href="https://github.com/Cerebra-CBR/cerebra" target="_blank" rel="noopener">исходников</a></span></div></div>
   </div>
 </section>
 
@@ -170,22 +173,33 @@ cerebra-miner -node http://127.0.0.1:18751/api -addr crb1ВАШ_АДРЕС</pre>
 <script>
 const API = 'api';
 const fmt = v => (v/1e8).toLocaleString('ru-RU',{maximumFractionDigits:2});
+let lastBlockAge = 0, lastFetch = 0;
 async function load(){
   try{
-    const s = await (await fetch(API+'/status')).json();
+    const s = await (await fetch(API+'/status?_='+Date.now(), {cache:'no-store'})).json();
     document.getElementById('s-height').textContent = s.height.toLocaleString('ru-RU');
     document.getElementById('s-hashrate').textContent = Math.round(s.hashrate).toLocaleString('ru-RU')+' H/s';
     document.getElementById('s-supply').textContent = fmt(s.supply);
     document.getElementById('s-reward').textContent = fmt(s.reward);
     document.getElementById('s-epoch').textContent = s.epoch;
-    const bs = await (await fetch(API+'/blocks?last=12')).json();
+    lastBlockAge = s.block_age || 0; lastFetch = Date.now();
+    const bs = await (await fetch(API+'/blocks?last=12&_='+Date.now(), {cache:'no-store'})).json();
     document.querySelector('#blocks tbody').innerHTML = bs.map(b=>
       `<tr><td>${b.height}</td><td>${new Date(b.time*1000).toLocaleTimeString('ru-RU')}</td>
       <td style="font-family:monospace;font-size:12px">${b.hash.slice(0,20)}…</td>
       <td>${b.txs}</td><td style="font-family:monospace;font-size:12px">${b.miner.slice(0,14)}…</td></tr>`).join('');
   }catch(e){ console.error(e); }
 }
-load(); setInterval(load, 20000);
+// Tick the "last block" label every second so the page visibly stays live.
+function tick(){
+  const el = document.getElementById('s-age');
+  if(!el) return;
+  const age = lastBlockAge + Math.floor((Date.now()-lastFetch)/1000);
+  el.textContent = age < 60 ? age + ' с' : Math.floor(age/60) + ' м ' + (age%60) + ' с';
+}
+load();
+setInterval(load, 10000);
+setInterval(tick, 1000);
 </script>
 </body>
 </html>
