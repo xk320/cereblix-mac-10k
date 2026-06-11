@@ -538,7 +538,7 @@ func cmdSend(rest []string) error {
 		return err
 	}
 	tx := &core.Tx{To: to, Amount: amount, Fee: fee, Nonce: acc.Nonce}
-	core.SignTx(tx, ed25519.PrivateKey(priv))
+	core.SignTxAt(tx, ed25519.PrivateKey(priv), nextBlockHeight())
 	var out struct {
 		TxID string `json:"txid"`
 	}
@@ -770,6 +770,19 @@ func suggestedFee() uint64 {
 		return s.Fee
 	}
 	return 1000 // fallback floor (0.00001 CRB)
+}
+
+// nextBlockHeight returns the height of the block a new tx would be mined into
+// (tip + 1). The signing payload is chosen from this height (ChainID binding
+// activates at ChainIDHeight).
+func nextBlockHeight() uint64 {
+	var s struct {
+		Height uint64 `json:"height"`
+	}
+	if apiGet("/status", &s) == nil {
+		return s.Height + 1
+	}
+	return 0
 }
 
 func cmdTx(rest []string) error {

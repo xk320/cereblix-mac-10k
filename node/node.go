@@ -570,6 +570,8 @@ func (n *Node) RPCHandler() http.Handler {
 			"block_age":     blockAge,
 			"now":           now,
 			"fee_suggested": n.Chain.SuggestedFee(),
+			"chain_id":        core.ChainID,
+			"chain_id_height": core.ChainIDHeight,
 		})
 	})
 

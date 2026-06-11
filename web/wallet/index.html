@@ -345,10 +345,16 @@ async function sendTx(){
     if (!/^crb1[0-9a-f]{40}$/.test(to)) throw new Error(t('bad_to'));
     if (!(amount > 0)) throw new Error(t('bad_amount'));
     const b = await api('/balance?addr=' + keys.address);
+    const st = await api('/status');
     const tx = { from_pub: hex(keys.publicKey), to, amount, fee, nonce: b.nonce };
-    // Consensus signing payload - must match the Go node's Tx.SigningPayload
-    // verbatim ("cerebra-tx-v1"); this is a protocol constant, not the brand.
-    const payload = `cerebra-tx-v1|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`;
+    // Consensus signing payload - must match the Go node's Tx.signingPayloadFor
+    // verbatim ("cerebra-tx-v1"; a protocol constant, not the brand). From
+    // chain_id_height the payload also binds chain_id (the genesis hash) so a
+    // signature cannot be replayed onto a fork/testnet. Sign for the next block.
+    const nextHeight = (st.height || 0) + 1;
+    const payload = (st.chain_id && nextHeight >= st.chain_id_height)
+      ? `cerebra-tx-v1|${st.chain_id}|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`
+      : `cerebra-tx-v1|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`;
     tx.sig = hex(nacl.sign.detached(new TextEncoder().encode(payload), keys.secretKey));
     $('sendBtn').disabled = true;
     const res = await api('/tx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(tx)});

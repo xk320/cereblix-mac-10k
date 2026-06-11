@@ -38,6 +38,13 @@ const (
 	// so free transactions cannot be slipped in. Below it, any fee is accepted
 	// (existing blocks, including any early 0-fee test tx, stay valid).
 	MinFeeHeight = 450
+
+	// ChainIDHeight: from this height, transaction signatures must additionally
+	// commit to ChainID (the genesis hash). This binds a signature to THIS chain
+	// so it cannot be replayed onto a fork or testnet that shares the crb1
+	// address format. Height-gated: txs in blocks below it keep the original
+	// payload and stay valid, so the existing chain is not invalidated.
+	ChainIDHeight = 1000
 )
 
 // MaxTarget is the easiest allowed target (difficulty floor).
@@ -45,6 +52,11 @@ var MaxTarget = new(big.Int).Lsh(big.NewInt(1), 244)
 
 // GenesisTarget sets initial difficulty (~45 s on 3 cores at ~240 H/s/core).
 var GenesisTarget = new(big.Int).Lsh(big.NewInt(1), 241)
+
+// ChainID binds transaction signatures to this chain from ChainIDHeight on.
+// It is the genesis block hash, so a chain with a different genesis yields a
+// different ChainID and rejects any signature replayed from another chain.
+var ChainID = GenesisBlock().Hash()
 
 func BlockSubsidy(height uint64) uint64 {
 	halvings := height / HalvingInterval
@@ -103,8 +115,25 @@ func (t *Tx) FromAddr() (string, error) {
 	return AddrFromPub(pub), nil
 }
 
-// CheckSig validates structure and signature of a normal (non-coinbase) tx.
-func (t *Tx) CheckSig() error {
+// signingPayloadFor returns the message signed for a tx validated/applied at
+// `height`. From ChainIDHeight on it additionally commits to ChainID.
+func (t *Tx) signingPayloadFor(height uint64) []byte {
+	if height >= ChainIDHeight {
+		return []byte(fmt.Sprintf("cerebra-tx-v1|%s|%s|%s|%d|%d|%d",
+			ChainID, t.FromPub, t.To, t.Amount, t.Fee, t.Nonce))
+	}
+	return t.SigningPayload()
+}
+
+// CheckSig validates structure and signature against the pre-ChainID payload.
+// Prefer CheckSigAt wherever the validation height is known.
+func (t *Tx) CheckSig() error { return t.checkSig(t.SigningPayload()) }
+
+// CheckSigAt validates structure and signature for a tx applied at `height`,
+// selecting the height-appropriate (ChainID-bound) payload.
+func (t *Tx) CheckSigAt(height uint64) error { return t.checkSig(t.signingPayloadFor(height)) }
+
+func (t *Tx) checkSig(payload []byte) error {
 	if t.IsCoinbase() {
 		return errors.New("coinbase tx not allowed here")
 	}
@@ -122,15 +151,23 @@ func (t *Tx) CheckSig() error {
 	if err != nil || len(sig) != ed25519.SignatureSize {
 		return errors.New("bad signature encoding")
 	}
-	if !ed25519.Verify(ed25519.PublicKey(pub), t.SigningPayload(), sig) {
+	if !ed25519.Verify(ed25519.PublicKey(pub), payload, sig) {
 		return errors.New("invalid signature")
 	}
 	return nil
 }
 
+// SignTx signs with the pre-ChainID payload (valid below ChainIDHeight).
 func SignTx(t *Tx, priv ed25519.PrivateKey) {
 	t.FromPub = hex.EncodeToString(priv.Public().(ed25519.PublicKey))
 	t.Sig = hex.EncodeToString(ed25519.Sign(priv, t.SigningPayload()))
+}
+
+// SignTxAt signs a tx for inclusion at `height` (ChainID-bound from
+// ChainIDHeight on). Wallets should sign for the next block's height.
+func SignTxAt(t *Tx, priv ed25519.PrivateKey, height uint64) {
+	t.FromPub = hex.EncodeToString(priv.Public().(ed25519.PublicKey))
+	t.Sig = hex.EncodeToString(ed25519.Sign(priv, t.signingPayloadFor(height)))
 }
 
 // ------------------------------------------------------------------- blocks

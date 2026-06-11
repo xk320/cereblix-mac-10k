@@ -204,8 +204,8 @@ func spendable(bal uint64, immature uint64) uint64 {
 
 // validateTxAgainstState checks a non-coinbase tx against a state snapshot.
 // `immature` maps address -> coinbase amount not yet matured at this height.
-func validateTxAgainstState(st State, t *Tx, immature map[string]uint64) error {
-	if err := t.CheckSig(); err != nil {
+func validateTxAgainstState(st State, t *Tx, immature map[string]uint64, height uint64) error {
+	if err := t.CheckSigAt(height); err != nil {
 		return err
 	}
 	from, _ := t.FromAddr()
@@ -404,7 +404,7 @@ func (c *Chain) validateBlock(prefix []*Block, st State, b *Block) error {
 		if t.Fee < minfee {
 			return fmt.Errorf("tx %s: fee %d below minimum %d", t.ID()[:16], t.Fee, minfee)
 		}
-		if err := validateTxAgainstState(work, t, imm); err != nil {
+		if err := validateTxAgainstState(work, t, imm, b.Height); err != nil {
 			return fmt.Errorf("tx %s: %w", t.ID()[:16], err)
 		}
 		from, _ := t.FromAddr()
@@ -546,7 +546,8 @@ func (c *Chain) AddTx(t *Tx) error {
 // validateMempoolTxLocked checks t against state plus queued txs from the
 // same sender (allows nonce chains in the mempool).
 func (c *Chain) validateMempoolTxLocked(t *Tx) error {
-	if err := t.CheckSig(); err != nil {
+	// A mempool tx targets the next block, whose height is len(blocks).
+	if err := t.CheckSigAt(uint64(len(c.blocks))); err != nil {
 		return err
 	}
 	if uint64(len(c.blocks)) >= MinFeeHeight {
@@ -639,7 +640,7 @@ func (c *Chain) BuildTemplate(coinbase string) (*Block, error) {
 		if t.Fee < minfee {
 			continue
 		}
-		if validateTxAgainstState(st, t, imm) != nil {
+		if validateTxAgainstState(st, t, imm, height) != nil {
 			continue
 		}
 		from, _ := t.FromAddr()
