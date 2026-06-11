@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -89,19 +91,49 @@ func (n *Node) savePeers() {
 	_ = os.WriteFile(n.peersFile(), raw, 0o644)
 }
 
-func (n *Node) addPeer(url string) {
-	url = strings.TrimRight(strings.TrimSpace(url), "/")
-	if url == "" || !strings.HasPrefix(url, "http") {
+func (n *Node) addPeer(peerURL string) {
+	peerURL = strings.TrimRight(strings.TrimSpace(peerURL), "/")
+	if peerURL == "" || !strings.HasPrefix(peerURL, "http") {
 		return
 	}
-	if n.publicURL != "" && url == n.publicURL {
+	if n.publicURL != "" && peerURL == n.publicURL {
+		return
+	}
+	// SSRF guard: a peer URL arrives unauthenticated via the X-Cerebra-Peer
+	// header, and the node will later issue requests to it during sync/discovery.
+	// Reject loopback/private/link-local literals so the node can't be aimed at
+	// internal services (e.g. cloud metadata 169.254.169.254) or used as a relay.
+	if !peerHostAllowed(peerURL) {
 		return
 	}
 	n.peersMu.Lock()
-	if _, ok := n.peers[url]; !ok && len(n.peers) < 64 {
-		n.peers[url] = time.Time{}
+	if _, ok := n.peers[peerURL]; !ok && len(n.peers) < 64 {
+		n.peers[peerURL] = time.Time{}
 	}
 	n.peersMu.Unlock()
+}
+
+// peerHostAllowed rejects URLs whose host is a loopback/private/link-local IP
+// literal or an obvious localhost name. Public hostnames/IPs are allowed.
+func peerHostAllowed(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+	if h := strings.ToLower(host); h == "localhost" || strings.HasSuffix(h, ".localhost") {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			return false
+		}
+	}
+	return true
 }
 
 func (n *Node) peerList() []string {
@@ -219,6 +251,9 @@ func (n *Node) syncWithPeer(peer string) {
 		return
 	}
 	n.markPeer(peer, true)
+	if len(their.CumWork) > 80 { // a 256-bit cumwork is ~64 hex; reject absurd values
+		return
+	}
 	theirWork, ok := new(big.Int).SetString(their.CumWork, 16)
 	if !ok || theirWork.Cmp(n.Chain.CumWork()) <= 0 {
 		return
@@ -307,6 +342,71 @@ func (n *Node) broadcastTx(t *core.Tx) {
 			_ = n.postJSON(peer+"/p2p/tx", t, nil)
 		}(p)
 	}
+}
+
+// ------------------------------------------------------- per-IP rate limiter
+
+// rateLimiter is a token-bucket limiter keyed by client IP. It fronts the
+// unauthenticated, internet-exposed P2P port so a single source cannot flood
+// the node with expensive PoW-verify (/p2p/block) or sync requests. Limits are
+// generous enough for honest peers syncing in 200-block batches.
+type rateLimiter struct {
+	mu     sync.Mutex
+	b      map[string]*tokenBucket
+	rate   float64 // tokens refilled per second
+	burst  float64 // bucket capacity
+}
+
+type tokenBucket struct {
+	tokens float64
+	last   time.Time
+}
+
+func newRateLimiter(rate, burst float64) *rateLimiter {
+	return &rateLimiter{b: map[string]*tokenBucket{}, rate: rate, burst: burst}
+}
+
+func (rl *rateLimiter) allow(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	now := time.Now()
+	tb := rl.b[ip]
+	if tb == nil {
+		// Bound memory: a flood of spoofed-source IPs can't grow this forever.
+		if len(rl.b) > 8192 {
+			rl.b = map[string]*tokenBucket{}
+		}
+		tb = &tokenBucket{tokens: rl.burst, last: now}
+		rl.b[ip] = tb
+	}
+	tb.tokens += now.Sub(tb.last).Seconds() * rl.rate
+	if tb.tokens > rl.burst {
+		tb.tokens = rl.burst
+	}
+	tb.last = now
+	if tb.tokens < 1 {
+		return false
+	}
+	tb.tokens--
+	return true
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func (rl *rateLimiter) wrap(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !rl.allow(clientIP(r)) {
+			writeErr(w, 429, "rate limit exceeded")
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 // -------------------------------------------------------------- p2p server
@@ -708,6 +808,16 @@ func (n *Node) getTemplate(addr string) (*core.Block, error) {
 			delete(n.templates, k)
 		}
 	}
+	// Hard cap: many distinct addresses at the SAME tip all share the PrevHash
+	// prefix above and survive the prune, so /api/getwork spam with random
+	// addresses could grow this unbounded. Bound it regardless.
+	const maxTemplates = 512
+	if _, exists := n.templates[id]; !exists && len(n.templates) >= maxTemplates {
+		for k := range n.templates {
+			delete(n.templates, k)
+			break
+		}
+	}
 	n.templates[id] = tmpl
 	return tmpl, nil
 }
@@ -823,9 +933,12 @@ func newServer(addr string, h http.Handler) *http.Server {
 
 func (n *Node) Serve(p2pAddr, rpcAddr string) error {
 	errc := make(chan error, 2)
+	// Per-IP rate limit on the unauthenticated, internet-exposed P2P port.
+	// ~25 req/s/IP, burst 50 - far above honest peer sync, far below a flood.
+	p2pRL := newRateLimiter(25, 50)
 	go func() {
 		log.Printf("p2p listening on %s", p2pAddr)
-		errc <- newServer(p2pAddr, n.P2PHandler()).ListenAndServe()
+		errc <- newServer(p2pAddr, p2pRL.wrap(n.P2PHandler())).ListenAndServe()
 	}()
 	go func() {
 		log.Printf("rpc listening on %s", rpcAddr)
