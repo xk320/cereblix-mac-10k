@@ -396,6 +396,8 @@ func dispatch(args []string) error {
 		return cmdAddress(rest)
 	case "richlist":
 		return cmdRichlist(rest)
+	case "mempool":
+		return cmdMempool()
 	case "search":
 		return cmdSearch(rest)
 	case "node":
@@ -425,9 +427,10 @@ Explorer commands:
   status                   network status (height, hashrate, supply...)
   latest [n]               latest n blocks
   block <height|hash>      show a block and its transactions
-  tx <txid>                look up a transaction
-  address <crb1...>        balance + history of any address
+  tx <txid>                look up a transaction (with confirmations)
+  address <crb1...>        balance + totals + history of any address
   richlist [n]             top addresses by balance
+  mempool                  unconfirmed transactions
   search <query>           classify height/hash/txid/address
 
   node [url]               show or switch the node URL
@@ -726,13 +729,20 @@ func cmdBlock(rest []string) error {
 	if err := apiGet("/block?"+q, &b); err != nil {
 		return err
 	}
+	var fees, out uint64
+	for _, t := range b.Txs {
+		out += t.Amount
+		if !t.IsCoinbase() {
+			fees += t.Fee
+		}
+	}
 	fmt.Printf("block #%d\n", b.Height)
 	fmt.Printf("  hash:   %s\n", b.Hash())
 	fmt.Printf("  prev:   %s\n", b.PrevHash)
 	fmt.Printf("  time:   %s\n", time.Unix(int64(b.Time), 0).Format("2006-01-02 15:04:05"))
 	fmt.Printf("  target: %s\n", b.Target)
 	fmt.Printf("  nonce:  %d\n", b.Nonce)
-	fmt.Printf("  txs:    %d\n", len(b.Txs))
+	fmt.Printf("  txs:    %d  (outputs %s, fees %s)\n", len(b.Txs), crb(out), crb(fees))
 	for i, t := range b.Txs {
 		from := "coinbase"
 		if !t.IsCoinbase() {
@@ -741,6 +751,14 @@ func cmdBlock(rest []string) error {
 		fmt.Printf("   [%d] %s -> %s  %s  (fee %s)\n", i, short(from), short(t.To), crb(t.Amount), crb(t.Fee))
 	}
 	return nil
+}
+
+func netHeight() uint64 {
+	var s struct {
+		Height uint64 `json:"height"`
+	}
+	_ = apiGet("/status", &s)
+	return s.Height
 }
 
 func cmdTx(rest []string) error {
@@ -753,16 +771,40 @@ func cmdTx(rest []string) error {
 	}
 	fmt.Printf("tx %s\n", loc.TxID)
 	if loc.Pending {
-		fmt.Println("  status: PENDING (in mempool)")
+		fmt.Println("  status: PENDING (in mempool, 0 confirmations)")
 	} else {
-		fmt.Printf("  status: confirmed in block #%d\n", loc.Height)
+		conf := netHeight() - loc.Height + 1
+		fmt.Printf("  status: confirmed in block #%d (%d confirmations)\n", loc.Height, conf)
 		fmt.Printf("  block:  %s\n", loc.BlockHash)
 		fmt.Printf("  time:   %s\n", time.Unix(int64(loc.Time), 0).Format("2006-01-02 15:04:05"))
 	}
-	fmt.Printf("  from:   %s\n", loc.From)
+	if loc.Coinbase {
+		fmt.Printf("  from:   coinbase (block reward)\n")
+	} else {
+		fmt.Printf("  from:   %s\n", loc.From)
+	}
 	fmt.Printf("  to:     %s\n", loc.To)
 	fmt.Printf("  amount: %s\n", crb(loc.Amount))
 	fmt.Printf("  fee:    %s\n", crb(loc.Fee))
+	fmt.Printf("  nonce:  %d\n", loc.Nonce)
+	return nil
+}
+
+func cmdMempool() error {
+	var txs []core.Tx
+	if err := apiGet("/mempool", &txs); err != nil {
+		return err
+	}
+	if len(txs) == 0 {
+		fmt.Println("mempool is empty — all transactions confirmed")
+		return nil
+	}
+	fmt.Printf("%d unconfirmed transaction(s):\n", len(txs))
+	for _, t := range txs {
+		from, _ := t.FromAddr()
+		fmt.Printf("  %s  %s -> %s  %s (fee %s)\n",
+			short(t.ID()), short(from), short(t.To), crb(t.Amount), crb(t.Fee))
+	}
 	return nil
 }
 
