@@ -43,6 +43,24 @@ func TestDeterminism(t *testing.T) {
 	t.Logf("nm hash (with dataset): %s", hex.EncodeToString(d1[:]))
 }
 
+// TestCrossPlatformHash pins the epoch-0 hash of a fixed header. It must hold
+// identically on every consensus platform (amd64, arm64, wasm); a mismatch
+// means that platform would mine invalid blocks, so a miner for it must not
+// ship until this passes there.
+func TestCrossPlatformHash(t *testing.T) {
+	p := DeriveParams(EpochSeed0())
+	header := make([]byte, 124)
+	for i := range header {
+		header[i] = byte(i * 7)
+	}
+	h := NewVM(p).Hash(header, 0)
+	got := hex.EncodeToString(h[:])
+	const want = "9748a3aa3d3b7c331585171b42297234830be0ec90e1ecd4425717f631c00aa7"
+	if got != want {
+		t.Fatalf("PLATFORM HASH MISMATCH - do not mine on this platform\n got %s\nwant %s", got, want)
+	}
+}
+
 func TestEpochsDiffer(t *testing.T) {
 	p0 := DeriveParams(EpochSeed0())
 	p1 := DeriveParams([]byte("some other epoch boundary hash..32b"))

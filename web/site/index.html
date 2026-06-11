@@ -84,7 +84,7 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
 <div class="wrap">
 <nav>
   <div class="logo">₢</div><b>Cereblix</b>
-  <a href="#why" data-i="nav_why">Why CRB</a><a href="#algo">NeuroMorph</a><a href="#mine" data-i="nav_mine">Mining</a><a href="explorer.html" data-i="nav_explorer">Explorer</a><a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">GitHub</a><a href="#faq">FAQ</a>
+  <a href="#why" data-i="nav_why">Why CRB</a><a href="#algo">NeuroMorph</a><a href="#mine" data-i="nav_mine">Mining</a><a href="mine.html" data-i="nav_browser">Mine in browser</a><a href="explorer.html" data-i="nav_explorer">Explorer</a><a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">GitHub</a><a href="#faq">FAQ</a>
   <a class="btn" href="wallet/" data-i="nav_wallet">Open wallet</a>
   <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
 </nav>
@@ -214,7 +214,7 @@ cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
 const I18N = {
   en: {},  // English is the source text in the HTML; en = identity
   ru: {
-    nav_why:"Почему CRB", nav_mine:"Майнинг", nav_explorer:"Обозреватель", nav_wallet:"Открыть кошелёк",
+    nav_why:"Почему CRB", nav_mine:"Майнинг", nav_browser:"Майнить в браузере", nav_explorer:"Обозреватель", nav_wallet:"Открыть кошелёк",
     hero_h1:'Монета, которую майнит <em>процессор</em>.<br>Не видеокарта. Не ASIC. <em>Никогда.</em>',
     hero_p:'Cereblix (CRB) - криптовалюта на новом PoW-алгоритме <b>NeuroMorph</b>: виртуальная машина, которая <b>перепрограммирует сама себя каждые 4096 блоков</b>. Чип, способный её майнить, обязан быть процессором - по определению.',
     hero_cta1:"Начать майнить за 2 минуты", hero_cta2:"Веб-кошелёк",

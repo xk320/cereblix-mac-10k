@@ -75,6 +75,23 @@ cereblix-miner -addr crb1YOURADDRESS -threads 4 # limit cores
 > Antivirus software often flags unsigned CPU miners as PUA - add an exclusion
 > for the miner file rather than disabling protection.
 
+### Mine in a browser (phone / iOS / Android / desktop)
+
+The NeuroMorph hasher also compiles to WebAssembly, so the coin can be mined in
+any browser with no install and no signing - including iOS Safari and Android.
+It is much slower than the native miner (a phone does a few to a few dozen H/s)
+but runs anywhere. Open `mine.html` on the site, enter your address, start.
+
+Build the wasm module:
+
+```sh
+GOOS=js GOARCH=wasm go build -o web/site/cereblix.wasm ./cmd/cereblix-wasm
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/site/wasm_exec.js
+```
+
+Hashing is verified byte-identical across amd64, arm64 and wasm
+(`TestCrossPlatformHash`), so browser/phone-found blocks are accepted.
+
 ## Run a full node
 
 ```sh

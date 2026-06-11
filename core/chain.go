@@ -172,8 +172,39 @@ func (c *Chain) rebuildDerived() {
 
 // ------------------------------------------------------------ state rules
 
+// immatureCoinbase sums, per address, the block rewards not yet spendable at
+// block height `atHeight`: a coinbase mined at height H matures only when
+// atHeight - H >= CoinbaseMaturity. Empty below MaturityHeight, where the rule
+// is not yet enforced (so pre-activation blocks stay valid).
+func immatureCoinbase(blocks []*Block, atHeight uint64) map[string]uint64 {
+	imm := map[string]uint64{}
+	if atHeight < MaturityHeight {
+		return imm
+	}
+	lo := uint64(0)
+	if atHeight > CoinbaseMaturity {
+		lo = atHeight - CoinbaseMaturity + 1
+	}
+	for h := lo; h < atHeight && h < uint64(len(blocks)); h++ {
+		b := blocks[h]
+		if len(b.Txs) > 0 && b.Txs[0].IsCoinbase() {
+			imm[b.Txs[0].To] += b.Txs[0].Amount
+		}
+	}
+	return imm
+}
+
+// spendable returns an account's balance minus its still-immature coinbase.
+func spendable(bal uint64, immature uint64) uint64 {
+	if immature >= bal {
+		return 0
+	}
+	return bal - immature
+}
+
 // validateTxAgainstState checks a non-coinbase tx against a state snapshot.
-func validateTxAgainstState(st State, t *Tx) error {
+// `immature` maps address -> coinbase amount not yet matured at this height.
+func validateTxAgainstState(st State, t *Tx, immature map[string]uint64) error {
 	if err := t.CheckSig(); err != nil {
 		return err
 	}
@@ -186,8 +217,8 @@ func validateTxAgainstState(st State, t *Tx) error {
 	if total < t.Amount { // overflow
 		return errors.New("amount overflow")
 	}
-	if acc.Balance < total {
-		return errors.New("insufficient balance")
+	if spendable(acc.Balance, immature[from]) < total {
+		return errors.New("insufficient spendable balance (coinbase not matured)")
 	}
 	return nil
 }
@@ -356,6 +387,7 @@ func (c *Chain) validateBlock(prefix []*Block, st State, b *Block) error {
 		cp := *v
 		work[k] = &cp
 	}
+	imm := immatureCoinbase(prefix, b.Height)
 	seen := map[string]bool{}
 	for _, t := range b.Txs[1:] {
 		if t.IsCoinbase() {
@@ -365,7 +397,7 @@ func (c *Chain) validateBlock(prefix []*Block, st State, b *Block) error {
 			return errors.New("duplicate tx in block")
 		}
 		seen[t.ID()] = true
-		if err := validateTxAgainstState(work, t); err != nil {
+		if err := validateTxAgainstState(work, t, imm); err != nil {
 			return fmt.Errorf("tx %s: %w", t.ID()[:16], err)
 		}
 		from, _ := t.FromAddr()
@@ -526,8 +558,9 @@ func (c *Chain) validateMempoolTxLocked(t *Tx) error {
 	if t.Nonce != nonce {
 		return fmt.Errorf("bad nonce: want %d got %d", nonce, t.Nonce)
 	}
-	if acc.Balance < spent+t.Amount+t.Fee {
-		return errors.New("insufficient balance (incl. pending)")
+	imm := immatureCoinbase(c.blocks, uint64(len(c.blocks)))
+	if spendable(acc.Balance, imm[from]) < spent+t.Amount+t.Fee {
+		return errors.New("insufficient spendable balance (incl. pending / immature coinbase)")
 	}
 	return nil
 }
@@ -581,12 +614,13 @@ func (c *Chain) BuildTemplate(coinbase string) (*Block, error) {
 		cp := *v
 		st[k] = &cp
 	}
+	imm := immatureCoinbase(c.blocks, height)
 	var picked []*Tx
 	for _, t := range c.sortedMempoolLocked() {
 		if len(picked) >= MaxBlockTxs-1 {
 			break
 		}
-		if validateTxAgainstState(st, t) != nil {
+		if validateTxAgainstState(st, t, imm) != nil {
 			continue
 		}
 		from, _ := t.FromAddr()

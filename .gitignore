@@ -27,3 +27,4 @@ cerebra-wallet-linux-amd64
 # OS / editor
 .DS_Store
 Thumbs.db
+*.wasm

@@ -25,6 +25,13 @@ const (
 	MaxBlockTxs        = 200
 	MaxFutureDrift     = 300 // seconds
 	AddrPrefix         = "crb1"
+
+	// CoinbaseMaturity: a block reward becomes spendable only once it is this
+	// many blocks deep, so a reward reversed by a reorg cannot have been spent.
+	// Set to match the reorg-depth cap. Enforced from MaturityHeight onward
+	// (earlier blocks are grandfathered so the existing chain stays valid).
+	CoinbaseMaturity = 100
+	MaturityHeight   = 500
 )
 
 // MaxTarget is the easiest allowed target (difficulty floor).
