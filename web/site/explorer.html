@@ -32,7 +32,7 @@ a:hover{text-decoration:underline}
 .search input{flex:1;background:#0c1322;border:1px solid #2c3a55;border-radius:10px;color:var(--txt);padding:12px 14px;font-size:15px;font-family:ui-monospace,Consolas,monospace}
 .search input:focus{outline:none;border-color:var(--acc)}
 .search button{background:linear-gradient(135deg,var(--acc),#0ea5e9);border:0;color:#06121f;font-weight:700;padding:0 20px;border-radius:10px;cursor:pointer}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(120px,100%),1fr));gap:10px;margin-bottom:18px}
 .stat{background:var(--panel);border:1px solid #233047;border-radius:12px;padding:12px;text-align:center}
 .stat b{display:block;font-size:19px;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat span{color:var(--mut);font-size:12px}
