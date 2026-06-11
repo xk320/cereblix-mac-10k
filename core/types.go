@@ -32,6 +32,12 @@ const (
 	// (earlier blocks are grandfathered so the existing chain stays valid).
 	CoinbaseMaturity = 100
 	MaturityHeight   = 500
+
+	// MinFeeHeight: from this height the cheap, self-adjusting fee floor becomes
+	// a hard consensus minimum - blocks reject any non-coinbase tx paying less,
+	// so free transactions cannot be slipped in. Below it, any fee is accepted
+	// (existing blocks, including any early 0-fee test tx, stay valid).
+	MinFeeHeight = 450
 )
 
 // MaxTarget is the easiest allowed target (difficulty floor).

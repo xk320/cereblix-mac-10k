@@ -40,8 +40,8 @@ nav .btn{margin-left:auto}
 .hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
 .hero p{color:var(--mut);max-width:700px;margin:0 auto 28px;font-size:18px}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:12px;margin:36px 0}
-.stat{background:var(--panel);border:1px solid #233047;border-radius:14px;padding:16px;text-align:center}
-.stat b{display:block;font-size:24px;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat{background:var(--panel);border:1px solid #233047;border-radius:14px;padding:16px 8px;text-align:center}
+.stat b{display:block;font-size:20px;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat b.sm{font-size:18px}
 .stat span{color:var(--mut);font-size:13px}
 .stat b.ep-wrap{overflow:visible;white-space:nowrap}
@@ -60,6 +60,13 @@ h2 em{font-style:normal;color:var(--acc)}
 .card h3{font-size:18px;margin-bottom:10px}
 .card h3 .ico{margin-right:8px}
 .card p{color:var(--mut);font-size:15px}
+.mine-choose{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:16px;margin-bottom:22px}
+.mine-card{display:block;background:var(--panel);border:1px solid #233047;border-radius:16px;padding:22px;text-decoration:none;color:var(--txt);transition:border-color .15s,transform .15s}
+.mine-card:hover{border-color:var(--acc);transform:translateY(-2px)}
+.mine-card .mc-ic{font-size:34px;margin-bottom:6px}
+.mine-card b{font-size:18px;display:block}
+.mine-card p{color:var(--mut);font-size:14.5px;margin:8px 0 12px}
+.mine-card .mc-go{color:var(--acc);font-weight:700;font-size:14.5px}
 .steps{counter-reset:s}
 .step{display:flex;gap:16px;margin-bottom:18px;background:var(--panel);border:1px solid #233047;border-radius:14px;padding:18px}
 .step>div{min-width:0;flex:1}
@@ -105,7 +112,7 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
   <a class="brand" href="./"><span class="logo">₢</span><b>Cereblix</b></a>
   <div class="links">
     <a href="./" class="active" data-i="nav_home">Home</a>
-    <a href="mine.html" data-i="nav_mine">Mine</a>
+    <a href="#mine" data-i="nav_mine">Mine</a>
     <a href="explorer.html" data-i="nav_explorer">Explorer</a>
     <a href="wallet/" data-i="nav_wallet">Wallet</a>
     <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">GitHub</a>
@@ -186,7 +193,21 @@ footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b
 
 <section id="mine">
   <h2 data-i-html="mine_h2">Start <em>mining</em></h2>
-  <div class="steps">
+  <div class="mine-choose">
+    <a class="mine-card" href="mine.html">
+      <div class="mc-ic">📱</div>
+      <b data-i="mc_browser_t">Mine in your browser</b>
+      <p data-i="mc_browser_b">Easiest. Phone (iOS / Android), tablet or PC. No install, no signing. Slower, but runs anywhere.</p>
+      <span class="mc-go" data-i="mc_browser_go">Open the browser miner →</span>
+    </a>
+    <a class="mine-card" href="#mine-app">
+      <div class="mc-ic">💻</div>
+      <b data-i="mc_app_t">Mine with the app</b>
+      <p data-i="mc_app_b">Faster. Download the native CPU miner for Windows or Linux and run it with your address.</p>
+      <span class="mc-go" data-i="mc_app_go">See the steps below ↓</span>
+    </a>
+  </div>
+  <div id="mine-app" class="steps">
     <div class="step"><div><b data-i="mine_s1_t">Create a wallet</b><br><span style="color:var(--mut)" data-i-html="mine_s1_b">Open the <a href="wallet/">web wallet</a>, click "Create", save your private key and copy your <code>crb1…</code> address.</span></div></div>
     <div class="step"><div><b data-i="mine_s2_t">Download the miner</b><br><span style="color:var(--mut)" data-i-html="mine_s2_b">Latest builds on <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>:
       <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-windows-amd64.exe">Windows x64</a> ·
@@ -270,6 +291,8 @@ const I18N = {
     algo_outro:'А на границе каждой эпохи (4096 блоков ≈ 3 дня) из хэша цепи рождаются <b>новые правила VM</b>. ASIC, выпущенный сегодня, через эпоху исполняет уже «не тот» алгоритм. Единственное устройство, которому всё равно, - универсальный процессор.',
     algo_warn:'🧪 Бесплатный открытый опенсорсный проект. Майнь, форкай, поднимай свою ноду - код полностью твой.',
     mine_h2:'Начать <em>майнить</em>',
+    mc_browser_t:"Майнить в браузере", mc_browser_b:"Проще всего. Телефон (iOS / Android), планшет или ПК. Без установки. Медленнее, но работает где угодно.", mc_browser_go:"Открыть браузерный майнер →",
+    mc_app_t:"Майнить приложением", mc_app_b:"Быстрее. Скачайте нативный CPU-майнер для Windows или Linux и запустите со своим адресом.", mc_app_go:"К шагам ниже ↓",
     mine_s1_t:"Создайте кошелёк", mine_s1_b:'Откройте <a href="wallet/">веб-кошелёк</a>, нажмите «Создать», сохраните приватный ключ и скопируйте адрес <code>crb1…</code>',
     mine_s2_t:"Скачайте майнер", mine_s2_b:'Свежие сборки - на <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>: <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-windows-amd64.exe">Windows x64</a> · <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-linux-amd64">Linux x64</a> &nbsp;(Intel и AMD; код открыт - <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">github.com/Cerebra-CBR/cereblix</a>)',
     mine_s3_t:"Запустите", mine_s3_b:'По умолчанию используются все ядра; ограничить: <code>-threads 4</code>. Майнер сам подключится к публичной ноде. Нашли блок - 50 CRB упали на адрес. Баланс виден в кошельке через ~минуту.',

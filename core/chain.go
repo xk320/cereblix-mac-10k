@@ -388,6 +388,10 @@ func (c *Chain) validateBlock(prefix []*Block, st State, b *Block) error {
 		work[k] = &cp
 	}
 	imm := immatureCoinbase(prefix, b.Height)
+	var minfee uint64
+	if b.Height >= MinFeeHeight {
+		minfee = minFeeFor(prefix)
+	}
 	seen := map[string]bool{}
 	for _, t := range b.Txs[1:] {
 		if t.IsCoinbase() {
@@ -397,6 +401,9 @@ func (c *Chain) validateBlock(prefix []*Block, st State, b *Block) error {
 			return errors.New("duplicate tx in block")
 		}
 		seen[t.ID()] = true
+		if t.Fee < minfee {
+			return fmt.Errorf("tx %s: fee %d below minimum %d", t.ID()[:16], t.Fee, minfee)
+		}
 		if err := validateTxAgainstState(work, t, imm); err != nil {
 			return fmt.Errorf("tx %s: %w", t.ID()[:16], err)
 		}
@@ -542,6 +549,11 @@ func (c *Chain) validateMempoolTxLocked(t *Tx) error {
 	if err := t.CheckSig(); err != nil {
 		return err
 	}
+	if uint64(len(c.blocks)) >= MinFeeHeight {
+		if m := minFeeFor(c.blocks); t.Fee < m {
+			return fmt.Errorf("fee %d below minimum %d synapses", t.Fee, m)
+		}
+	}
 	from, _ := t.FromAddr()
 	acc := c.state.get(from)
 	nonce := acc.Nonce
@@ -615,10 +627,17 @@ func (c *Chain) BuildTemplate(coinbase string) (*Block, error) {
 		st[k] = &cp
 	}
 	imm := immatureCoinbase(c.blocks, height)
+	var minfee uint64
+	if height >= MinFeeHeight {
+		minfee = minFeeFor(c.blocks)
+	}
 	var picked []*Tx
 	for _, t := range c.sortedMempoolLocked() {
 		if len(picked) >= MaxBlockTxs-1 {
 			break
+		}
+		if t.Fee < minfee {
+			continue
 		}
 		if validateTxAgainstState(st, t, imm) != nil {
 			continue
@@ -723,32 +742,36 @@ func (c *Chain) Supply() uint64 {
 	return s
 }
 
-// SuggestedFee returns a cheap, self-adjusting fee (in synapses) based on how
-// full recent blocks are: an idle network gives a tiny floor, and as blocks
-// fill toward the cap the suggestion rises to ration space. This is a wallet
-// hint, not a consensus rule - the protocol still accepts any fee, even 0.
-func (c *Chain) SuggestedFee() uint64 {
+// minFeeFor computes the cheap, self-adjusting fee floor (synapses) from how
+// full the given blocks are: an idle network gives a tiny floor, and as blocks
+// fill toward the cap it rises to ration space. Deterministic over the supplied
+// prefix, so it doubles as the consensus minimum from MinFeeHeight on.
+func minFeeFor(blocks []*Block) uint64 {
 	const floor = 1000      // 0.00001 CRB while the network is idle
 	const fullMult = 1000.0 // completely full blocks -> ~floor*1000 (still cheap)
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	h := len(c.blocks)
 	n := 20
-	if h-1 < n {
-		n = h - 1
+	if len(blocks) < n {
+		n = len(blocks)
 	}
 	capacity := n * (MaxBlockTxs - 1)
 	if n <= 0 || capacity <= 0 {
 		return floor
 	}
 	var txs int
-	for i := h - n; i < h; i++ {
-		if t := len(c.blocks[i].Txs) - 1; t > 0 {
+	for i := len(blocks) - n; i < len(blocks); i++ {
+		if t := len(blocks[i].Txs) - 1; t > 0 {
 			txs += t
 		}
 	}
 	fill := float64(txs) / float64(capacity) // 0..1
 	return uint64(float64(floor) * (1.0 + fullMult*fill*fill))
+}
+
+// SuggestedFee returns the current cheap, self-adjusting fee (synapses).
+func (c *Chain) SuggestedFee() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return minFeeFor(c.blocks)
 }
 
 // HistoryItem is a wallet-facing view of a confirmed transaction.
