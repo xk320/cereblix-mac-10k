@@ -609,6 +609,20 @@ func (c *Chain) pruneMempoolLocked() {
 	}
 }
 
+// MinedBlocks counts how many blocks were mined to addr (i.e. addr is the
+// coinbase recipient). Used by the faucet to tier rewards by mining activity.
+func (c *Chain) MinedBlocks(addr string) int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	n := 0
+	for _, b := range c.blocks {
+		if len(b.Txs) > 0 && b.Txs[0].To == addr {
+			n++
+		}
+	}
+	return n
+}
+
 // --------------------------------------------------------------- building
 
 // BuildTemplate assembles an unmined block paying to `coinbase`.

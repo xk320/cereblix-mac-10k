@@ -685,6 +685,15 @@ func (n *Node) RPCHandler() http.Handler {
 		writeJSON(w, map[string]string{"result": "accepted", "txid": t.ID()})
 	})
 
+	h("/api/mined", func(w http.ResponseWriter, r *http.Request) {
+		addr := r.URL.Query().Get("addr")
+		if !core.ValidAddr(addr) {
+			writeErr(w, 400, "bad address")
+			return
+		}
+		writeJSON(w, map[string]any{"address": addr, "blocks": n.Chain.MinedBlocks(addr)})
+	})
+
 	h("/api/richlist", func(w http.ResponseWriter, r *http.Request) {
 		n2, _ := strconv.Atoi(r.URL.Query().Get("n"))
 		if n2 <= 0 || n2 > 200 {

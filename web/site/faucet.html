@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cereblix Faucet - free CRB to get started</title>
+<meta name="theme-color" content="#06080f">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<style>
+@font-face{font-family:'Space Grotesk';font-weight:500;font-display:swap;src:url('fonts/spacegrotesk-500.woff2') format('woff2')}
+@font-face{font-family:'Space Grotesk';font-weight:700;font-display:swap;src:url('fonts/spacegrotesk-700.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-weight:400;font-display:swap;src:url('fonts/inter-400.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-weight:500;font-display:swap;src:url('fonts/inter-500.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-weight:700;font-display:swap;src:url('fonts/inter-700.woff2') format('woff2')}
+:root{--bg:#06080f;--glass:rgba(146,180,255,.05);--border:rgba(146,180,255,.13);--border2:rgba(120,200,255,.35);--acc:#22d3ee;--acc2:#a78bfa;--txt:#e8ecf6;--mut:#90a0bd;--ok:#34d399;--err:#f87171;--fd:'Space Grotesk',system-ui,sans-serif;--grad:linear-gradient(115deg,var(--acc),var(--acc2))}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:16px/1.6 'Inter',system-ui,Segoe UI,Roboto,sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+html{overflow-x:hidden}
+::selection{background:rgba(34,211,238,.28)}
+.bg{position:fixed;inset:0;z-index:-2;overflow:hidden;background:radial-gradient(1100px 680px at 50% -12%,#13234a 0%,transparent 60%),radial-gradient(760px 520px at 100% -4%,#1c1440 0%,transparent 55%),var(--bg)}
+.aurora{position:absolute;border-radius:50%;filter:blur(90px);opacity:.45}
+.aurora.a1{width:460px;height:460px;background:radial-gradient(circle,#22d3ee,transparent 64%);top:-160px;left:-90px;animation:dr1 24s ease-in-out infinite}
+.aurora.a2{width:430px;height:430px;background:radial-gradient(circle,#a78bfa,transparent 64%);top:-120px;right:-110px;animation:dr2 28s ease-in-out infinite}
+@keyframes dr1{50%{transform:translate(50px,40px) scale(1.1)}}@keyframes dr2{50%{transform:translate(-45px,50px) scale(1.06)}}
+@media(prefers-reduced-motion:reduce){.aurora{animation:none}}
+.wrap{max-width:620px;margin:0 auto;padding:0 16px 60px}
+.logo{flex:0 0 auto;display:block}
+nav{display:flex;align-items:center;gap:14px;padding:14px 0;flex-wrap:wrap}
+nav .brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--txt)}
+nav .brand .logo{width:34px;height:34px;filter:drop-shadow(0 4px 13px rgba(34,211,238,.4))}
+nav .brand b{font-family:var(--fd);font-size:20px;font-weight:700;letter-spacing:-.01em}
+nav .brand b i{font-style:normal;color:var(--acc2)}
+nav .links{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+nav .links a{color:var(--mut);text-decoration:none;font-size:14.5px;font-weight:500;white-space:nowrap}
+nav .links a:hover,nav .links a.active{color:var(--acc)}
+@media(max-width:560px){nav .links{margin-left:0;width:100%;gap:15px;overflow-x:auto}}
+.langsw{display:inline-flex;gap:2px;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--glass)}
+.langsw button{background:transparent;color:var(--mut);border:0;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit}
+.langsw button.on{background:var(--grad);color:#06121f}
+h1{font-family:var(--fd);font-size:clamp(24px,5vw,30px);font-weight:700;letter-spacing:-.02em;margin:14px 0 6px}h1 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);margin-bottom:18px}
+.card{background:var(--glass);border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:16px;backdrop-filter:blur(8px)}
+label{font-size:13.5px;color:var(--mut)}
+input{width:100%;background:#0b1120;border:1px solid var(--border);border-radius:11px;color:var(--txt);padding:12px 13px;font-size:15px;margin:6px 0 14px;font-family:ui-monospace,Consolas,monospace}
+input:focus{outline:none;border-color:var(--acc)}
+button.go{background:var(--grad);border:0;color:#06121f;font-family:var(--fd);font-weight:700;padding:14px 22px;border-radius:13px;cursor:pointer;font-size:16px;width:100%;box-shadow:0 8px 22px -6px rgba(34,211,238,.5);transition:transform .15s,filter .15s}
+button.go:hover{transform:translateY(-2px);filter:brightness(1.05)}
+button.go:disabled{opacity:.6;cursor:default;transform:none}
+.amt{font-family:var(--fd);font-weight:700;color:var(--acc)}
+.msg{margin-top:14px;font-size:14.5px;padding:12px 14px;border-radius:11px;display:none}
+.msg.ok{display:block;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.4);color:#a7f3d0}
+.msg.err{display:block;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.4);color:#fecaca}
+.msg.work{display:block;background:var(--glass);border:1px solid var(--border);color:var(--mut)}
+.msg a{color:var(--acc)}
+.note{background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(34,211,238,.06));border:1px solid var(--border2);border-radius:12px;padding:12px 16px;font-size:13.5px;color:#cbd5e1;margin-top:14px}
+.bar{height:6px;background:#0b1120;border-radius:6px;overflow:hidden;margin-top:8px;display:none}
+.bar i{display:block;height:100%;width:0;background:var(--grad);transition:width .15s}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"><div class="aurora a1"></div><div class="aurora a2"></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#a78bfa"/></linearGradient></defs></svg>
+<div class="wrap">
+<nav>
+  <a class="brand" href="./"><svg class="logo" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="11" fill="url(#lg)"/><path d="M14 8C27 13 27 16 20 20 13 24 13 27 26 32" stroke="#06121f" stroke-width="2.3" stroke-linecap="round"/><path d="M26 8C13 13 13 16 20 20 27 24 27 27 14 32" stroke="#06121f" stroke-width="2.3" stroke-linecap="round"/></svg><b>Cereb<i>lix</i></b></a>
+  <div class="links">
+    <a href="./" data-i="home">Home</a>
+    <a href="./#mine" data-i="mine">Mine</a>
+    <a href="explorer.html" data-i="explorer">Explorer</a>
+    <a href="wallet/" data-i="wallet">Wallet</a>
+    <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
+  </div>
+</nav>
+
+<h1 data-i-html="title">Free <em>CRB</em> faucet</h1>
+<div class="sub" data-i="sub">New here? Grab a tiny bit of CRB to try the wallet and send your first transaction - no mining needed.</div>
+
+<div class="card">
+  <label data-i="addr_l">Your CRB address</label>
+  <input id="addr" placeholder="crb1..." autocomplete="off">
+  <button class="go" id="btn" onclick="claim()" data-i="btn">Get CRB</button>
+  <div class="bar" id="bar"><i id="barfill"></i></div>
+  <div class="msg" id="msg"></div>
+  <div class="note" data-i-html="note">One claim per address and per IP every <b>3 hours</b>. The amount scales with how much you mine: <b>0.001</b> CRB to start, <b>0.01</b> once you've mined a block, <b>0.1</b> past 100 blocks. A quick in-browser proof-of-work runs first (anti-bot) - it briefly uses your CPU, fitting for a CPU-mined coin.</div>
+</div>
+
+<div class="card" style="font-size:14px;color:var(--mut)">
+  <span data-i="more">Want more than a drop? </span><a href="./#mine" data-i="more_link">Mine CRB</a><span data-i="more2"> - 50 CRB per block, on any CPU.</span>
+</div>
+</div>
+
+<script>
+const I = { en:{}, ru:{
+  home:"Главная", mine:"Майнинг", explorer:"Обозреватель", wallet:"Кошелёк",
+  title:'Бесплатный кран <em>CRB</em>',
+  sub:"Только пришёл? Возьми немного CRB, чтобы попробовать кошелёк и сделать первую транзакцию - без майнинга.",
+  addr_l:"Твой адрес CRB", btn:"Получить CRB",
+  note:'Одна выдача на адрес и на IP раз в <b>3 часа</b>. Сумма растёт с майнингом: <b>0.001</b> CRB на старте, <b>0.01</b> когда намайнил хотя бы блок, <b>0.1</b> после 100 блоков. Сначала в браузере проходит быстрый proof-of-work (анти-бот) - он на миг занимает процессор, что логично для CPU-монеты.',
+  more:"Нужно больше капли? ", more_link:"Майни CRB", more2:" - 50 CRB за блок, на любом процессоре."
+}};
+const EN={};
+function detect(){const s=localStorage.getItem('lang');return (s==='ru'||s==='en')?s:((navigator.language||'en').toLowerCase().startsWith('ru')?'ru':'en');}
+let LANG=detect();
+function applyLang(l){LANG=l;document.documentElement.lang=l;
+  document.querySelectorAll('[data-i],[data-i-html]').forEach(el=>{const k=el.getAttribute('data-i')||el.getAttribute('data-i-html');if(!(k in EN))EN[k]=el.innerHTML;el.innerHTML=l==='en'?EN[k]:(I.ru[k]??EN[k]);});
+  document.querySelectorAll('.langsw button').forEach(b=>b.classList.toggle('on',b.dataset.lang===l));}
+function setLang(l){localStorage.setItem('lang',l);applyLang(l);}
+const t=k=>LANG==='en'?(EN[k]??k):(I.ru[k]??EN[k]??k);
+
+const API='faucet';
+const $=id=>document.getElementById(id);
+function show(cls,html){const m=$('msg');m.className='msg '+cls;m.innerHTML=html;}
+
+// pure-JS SHA-256 (no WebCrypto needed over plain HTTP)
+function sha256(data){
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const len=data.length,bitLen=len*8;const padded=new Uint8Array(((len+8)>>6<<6)+64);padded.set(data);padded[len]=0x80;
+  const dv=new DataView(padded.buffer);dv.setUint32(padded.length-8,Math.floor(bitLen/0x100000000));dv.setUint32(padded.length-4,bitLen>>>0);
+  const w=new Int32Array(64);const rr=(x,n)=>(x>>>n)|(x<<(32-n));
+  for(let i=0;i<padded.length;i+=64){for(let t=0;t<16;t++)w[t]=dv.getInt32(i+t*4);
+    for(let t=16;t<64;t++){const s0=rr(w[t-15],7)^rr(w[t-15],18)^(w[t-15]>>>3);const s1=rr(w[t-2],17)^rr(w[t-2],19)^(w[t-2]>>>10);w[t]=(w[t-16]+s0+w[t-7]+s1)|0;}
+    let[a,b,c,d,e,f,g,h]=H;
+    for(let t=0;t<64;t++){const S1=rr(e,6)^rr(e,11)^rr(e,25);const ch=(e&f)^(~e&g);const t1=(h+S1+ch+K[t]+w[t])|0;const S0=rr(a,2)^rr(a,13)^rr(a,22);const mj=(a&b)^(a&c)^(b&c);const t2=(S0+mj)|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;}
+    H=H.map((x,j)=>(x+[a,b,c,d,e,f,g,h][j])|0);}
+  const out=new Uint8Array(32);const ov=new DataView(out.buffer);H.forEach((x,j)=>ov.setInt32(j*4,x));return out;
+}
+function lzbits(h){let n=0;for(const b of h){if(b===0){n+=8;continue;}for(let i=7;i>=0;i--){if((b&(1<<i))===0)n++;else return n;}}return n;}
+const enc=new TextEncoder();
+
+// solve PoW in batches so the UI stays responsive; returns a nonce string
+function solve(challenge,bits,onProgress){
+  return new Promise(resolve=>{
+    let nonce=0;const expected=Math.pow(2,bits);
+    function batch(){
+      for(let i=0;i<3000;i++){
+        const h=sha256(enc.encode(challenge+':'+nonce));
+        if(lzbits(h)>=bits){resolve(String(nonce));return;}
+        nonce++;
+      }
+      if(onProgress)onProgress(Math.min(99,Math.round(nonce/expected*100)));
+      setTimeout(batch,0);
+    }
+    batch();
+  });
+}
+
+async function claim(){
+  const addr=$('addr').value.trim();
+  if(!/^crb1[0-9a-f]{40}$/.test(addr)){show('err',LANG==='ru'?'Введите корректный адрес crb1…':'Enter a valid crb1… address');return;}
+  $('btn').disabled=true;$('bar').style.display='block';
+  show('work',LANG==='ru'?'Решаю анти-бот задачку (CPU)…':'Solving the anti-bot puzzle (CPU)…');
+  try{
+    const ch=await (await fetch(API+'/challenge?_='+Date.now(),{cache:'no-store'})).json();
+    const nonce=await solve(ch.challenge,ch.bits,p=>{$('barfill').style.width=p+'%';});
+    $('barfill').style.width='100%';
+    show('work',LANG==='ru'?'Отправляю…':'Sending…');
+    const res=await (await fetch(API+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({addr,challenge:ch.challenge,nonce})})).json();
+    if(res.error){show('err',res.error);}
+    else{show('ok',(LANG==='ru'?'Отправлено '+res.amount+' CRB! ':'Sent '+res.amount+' CRB! ')+'<a href="explorer.html" target="_blank">'+res.txid.slice(0,20)+'…</a>');}
+  }catch(e){show('err',(LANG==='ru'?'Ошибка: ':'Error: ')+e.message);}
+  finally{$('btn').disabled=false;$('bar').style.display='none';$('barfill').style.width='0';}
+}
+applyLang(LANG);
+</script>
+</body>
+</html>
