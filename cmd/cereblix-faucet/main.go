@@ -35,7 +35,8 @@ var (
 	nodeAPI                     string
 	amtBase, amtMiner, amtWhale uint64
 	priv                        ed25519.PrivateKey
-	from                        string
+	from                        string // payout wallet (treasury), signs faucet payouts
+	captchaAddr                 string // the captcha share mines to THIS wallet (separate)
 	shareTarget                 *big.Int // fixed, easy target for the captcha share
 	sendMu                      sync.Mutex
 	nextNonce                   uint64
@@ -148,7 +149,7 @@ func newChallenge() (string, *fwork, error) {
 		ID, Header, Target, Seed string
 		Height                   uint64
 	}
-	if err := nodeGet("/getwork?addr="+from, &gw); err != nil {
+	if err := nodeGet("/getwork?addr="+captchaAddr, &gw); err != nil {
 		return "", nil, err
 	}
 	header, e1 := hex.DecodeString(gw.Header)
@@ -291,6 +292,7 @@ func main() {
 	miner := flag.Float64("miner", 0.01, "CRB for addresses that mined >=1 block")
 	whale := flag.Float64("whale", 0.1, "CRB for addresses that mined >100 blocks")
 	work := flag.Uint64("work", 160, "captcha share difficulty in expected hashes (browser NeuroMorph)")
+	captcha := flag.String("captcha-addr", "", "address the captcha share mines to (defaults to payout wallet)")
 	datadir := flag.String("datadir", "/var/lib/cerebra", "where to store rate-limit state")
 	flag.Parse()
 
@@ -321,9 +323,13 @@ func main() {
 	}
 	priv = ed25519.PrivateKey(sk)
 	from = core.AddrFromPub(priv.Public().(ed25519.PublicKey))
+	captchaAddr = *captcha
+	if !core.ValidAddr(captchaAddr) {
+		captchaAddr = from
+	}
 	store = loadStore(*datadir + "/faucet.json")
-	log.Printf("faucet: treasury %s tiers %d/%d/%d, 3h cooldown, share work=%d, listen %s",
-		from, amtBase, amtMiner, amtWhale, *work, *listen)
+	log.Printf("faucet: payout %s, captcha mines to %s, tiers %d/%d/%d, 3h cooldown, work=%d, listen %s",
+		from, captchaAddr, amtBase, amtMiner, amtWhale, *work, *listen)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/faucet/info", func(w http.ResponseWriter, r *http.Request) {
