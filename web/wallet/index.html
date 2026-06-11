@@ -8,10 +8,18 @@
 <style>
 :root{--bg:#0a0e17;--panel:#111827;--panel2:#1a2336;--acc:#22d3ee;--acc2:#a78bfa;--txt:#e5e7eb;--mut:#8b9bb4;--ok:#34d399;--err:#f87171}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:radial-gradient(1200px 600px at 70% -10%,#15244a 0%,var(--bg) 60%);color:var(--txt);font:16px/1.55 system-ui,Segoe UI,Roboto,sans-serif;min-height:100vh}
-.wrap{max-width:880px;margin:0 auto;padding:24px 16px 64px}
-header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
-.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#06121f;font-size:22px}
+body{background:radial-gradient(1200px 600px at 70% -10%,#15244a 0%,var(--bg) 60%);color:var(--txt);font:16px/1.55 system-ui,Segoe UI,Roboto,sans-serif;min-height:100vh;overflow-x:hidden}
+html{overflow-x:hidden}
+.wrap{max-width:880px;margin:0 auto;padding:14px 16px 64px}
+nav{display:flex;align-items:center;gap:14px;padding:0 0 8px;flex-wrap:wrap}
+nav .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--txt)}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#06121f;font-size:18px;flex:0 0 auto}
+nav .brand b{font-size:18px}
+nav .links{margin-left:auto;display:flex;gap:15px;flex-wrap:wrap;align-items:center}
+nav .links a{color:var(--mut);text-decoration:none;font-size:14.5px;white-space:nowrap}
+nav .links a:hover,nav .links a.active{color:var(--acc)}
+@media(max-width:560px){nav .links{margin-left:0;width:100%;gap:14px;overflow-x:auto}}
+.title{font-size:22px;margin:14px 0 4px}.title span{color:var(--acc)}
 h1{font-size:22px}h1 span{color:var(--acc)}
 a{color:var(--acc);text-decoration:none}
 .card{background:var(--panel);border:1px solid #233047;border-radius:16px;padding:20px;margin-bottom:16px}
@@ -43,12 +51,18 @@ th{color:var(--mut);font-weight:600}
 </head>
 <body>
 <div class="wrap">
-<header>
-  <div class="logo">₢</div>
-  <div style="flex:1"><h1>Cereblix <span>Wallet</span></h1>
-  <div class="muted">CRB · NeuroMorph CPU-coin · <a href="../" data-i="about">about</a></div></div>
-  <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
-</header>
+<nav>
+  <a class="brand" href="../"><span class="logo">₢</span><b>Cereblix</b></a>
+  <div class="links">
+    <a href="../" data-i="nav_home">Home</a>
+    <a href="../mine.html" data-i="nav_mine">Mine</a>
+    <a href="../explorer.html" data-i="nav_explorer">Explorer</a>
+    <a href="./" class="active" data-i="nav_wallet">Wallet</a>
+    <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">GitHub</a>
+    <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
+  </div>
+</nav>
+<div class="title">Cereblix <span data-i="wallet">Wallet</span></div>
 
 <div id="setup" class="card">
   <h2 data-i="wallet">Wallet</h2>
@@ -112,7 +126,7 @@ const hex = b => Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
 const unhex = s => new Uint8Array(s.match(/.{2}/g).map(x=>parseInt(x,16)));
 
 const L = {
-  en:{about:"about",wallet:"Wallet",setup_p:"Keys are created and stored <b>only in your browser</b>. The server never sees your private key - transactions are signed locally (ed25519).",
+  en:{nav_home:"Home",nav_mine:"Mine",nav_explorer:"Explorer",nav_wallet:"Wallet",about:"about",wallet:"Wallet",setup_p:"Keys are created and stored <b>only in your browser</b>. The server never sees your private key - transactions are signed locally (ed25519).",
     create:"Create new wallet",import:"Import key",import_ph:"Private key (128 hex chars)",import_btn:"Import",
     newkey_warn:"⚠️ Save your private key somewhere safe. It is the <b>only</b> way to recover your wallet. Lose the key - lose the coins.",
     saved_btn:"I saved the key - continue",balance:"Balance",your_addr:"Your address (click to copy):",show_key:"show private key",logout:"log out",
@@ -126,7 +140,7 @@ const L = {
     net:(s)=>`height <b>${s.height}</b> · epoch ${s.epoch} · network hashrate ~<b>${Math.round(s.hashrate)}</b> H/s · supply ${fmt(s.supply)} CRB · reward ${fmt(s.reward)} CRB · mempool ${s.mempool}`,
     node_down:"node unavailable: ",bad_to:"invalid recipient address",bad_amount:"invalid amount",
     sent:(id)=>`Sent! TX ${id}… - will be in the next block`},
-  ru:{about:"о проекте",wallet:"Кошелёк",setup_p:"Ключи создаются и хранятся <b>только в вашем браузере</b>. Сервер никогда не видит приватный ключ - подпись транзакций происходит локально (ed25519).",
+  ru:{nav_home:"Главная",nav_mine:"Майнинг",nav_explorer:"Обозреватель",nav_wallet:"Кошелёк",about:"о проекте",wallet:"Кошелёк",setup_p:"Ключи создаются и хранятся <b>только в вашем браузере</b>. Сервер никогда не видит приватный ключ - подпись транзакций происходит локально (ed25519).",
     create:"Создать новый кошелёк",import:"Импортировать ключ",import_ph:"Приватный ключ (128 hex-символов)",import_btn:"Импортировать",
     newkey_warn:"⚠️ Сохраните приватный ключ в надёжном месте. Это <b>единственный</b> способ восстановить кошелёк. Потеряете ключ - потеряете монеты.",
     saved_btn:"Я сохранил ключ - продолжить",balance:"Баланс",your_addr:"Ваш адрес (нажмите, чтобы скопировать):",show_key:"показать приватный ключ",logout:"выйти",
