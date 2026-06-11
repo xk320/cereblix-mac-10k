@@ -1,0 +1,772 @@
+// Package node wires the Cerebra chain into a P2P + RPC daemon with an
+// optional built-in CPU miner.
+package node
+
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"math/big"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"cerebra/core"
+	nm "cerebra/neuromorph"
+)
+
+const (
+	syncInterval  = 10 * time.Second
+	batchBlocks   = 200
+	templateMaxAge = 8 * time.Second
+)
+
+type Node struct {
+	Chain *core.Chain
+
+	dataDir   string
+	publicURL string // advertised to peers, may be empty
+
+	peersMu sync.Mutex
+	peers   map[string]time.Time // base URL -> last success
+
+	client *http.Client
+
+	tmplMu    sync.Mutex
+	templates map[string]*core.Block // template id -> unmined block
+
+	hashCount atomic.Uint64 // built-in miner counter
+	stop      chan struct{}
+}
+
+func New(chain *core.Chain, dataDir, publicURL string, seedPeers []string) *Node {
+	n := &Node{
+		Chain:     chain,
+		dataDir:   dataDir,
+		publicURL: strings.TrimRight(publicURL, "/"),
+		peers:     map[string]time.Time{},
+		client:    &http.Client{Timeout: 20 * time.Second},
+		templates: map[string]*core.Block{},
+		stop:      make(chan struct{}),
+	}
+	n.loadPeers()
+	for _, p := range seedPeers {
+		n.addPeer(p)
+	}
+	chain.OnNewBlock = func(b *core.Block) { go n.broadcastBlock(b) }
+	return n
+}
+
+// ------------------------------------------------------------------ peers
+
+func (n *Node) peersFile() string { return filepath.Join(n.dataDir, "peers.json") }
+
+func (n *Node) loadPeers() {
+	raw, err := os.ReadFile(n.peersFile())
+	if err != nil {
+		return
+	}
+	var list []string
+	if json.Unmarshal(raw, &list) == nil {
+		for _, p := range list {
+			n.addPeer(p)
+		}
+	}
+}
+
+func (n *Node) savePeers() {
+	list := n.peerList()
+	raw, _ := json.Marshal(list)
+	_ = os.WriteFile(n.peersFile(), raw, 0o644)
+}
+
+func (n *Node) addPeer(url string) {
+	url = strings.TrimRight(strings.TrimSpace(url), "/")
+	if url == "" || !strings.HasPrefix(url, "http") {
+		return
+	}
+	if n.publicURL != "" && url == n.publicURL {
+		return
+	}
+	n.peersMu.Lock()
+	if _, ok := n.peers[url]; !ok && len(n.peers) < 64 {
+		n.peers[url] = time.Time{}
+	}
+	n.peersMu.Unlock()
+}
+
+func (n *Node) peerList() []string {
+	n.peersMu.Lock()
+	defer n.peersMu.Unlock()
+	out := make([]string, 0, len(n.peers))
+	for p := range n.peers {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (n *Node) markPeer(url string, ok bool) {
+	n.peersMu.Lock()
+	defer n.peersMu.Unlock()
+	if ok {
+		n.peers[url] = time.Now()
+	}
+}
+
+// ------------------------------------------------------------ http helpers
+
+func (n *Node) getJSON(url string, out any) error {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	if n.publicURL != "" {
+		req.Header.Set("X-Cerebra-Peer", n.publicURL)
+	}
+	resp, err := n.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("http %d", resp.StatusCode)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func (n *Node) postJSON(url string, body any, out any) error {
+	raw, _ := json.Marshal(body)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if n.publicURL != "" {
+		req.Header.Set("X-Cerebra-Peer", n.publicURL)
+	}
+	resp, err := n.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if out != nil {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
+}
+
+func writeErr(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// ------------------------------------------------------------------- sync
+
+type tipInfo struct {
+	Height  uint64 `json:"height"`
+	Hash    string `json:"hash"`
+	CumWork string `json:"cumwork"` // hex
+}
+
+func (n *Node) myTip() tipInfo {
+	tip := n.Chain.Tip()
+	return tipInfo{
+		Height:  tip.Height,
+		Hash:    tip.Hash(),
+		CumWork: n.Chain.CumWork().Text(16),
+	}
+}
+
+func (n *Node) SyncLoop() {
+	for {
+		select {
+		case <-n.stop:
+			return
+		case <-time.After(syncInterval):
+		}
+		for _, p := range n.peerList() {
+			n.syncWithPeer(p)
+		}
+		n.savePeers()
+		n.discoverPeers()
+	}
+}
+
+func (n *Node) syncWithPeer(peer string) {
+	var their tipInfo
+	if err := n.getJSON(peer+"/p2p/tip", &their); err != nil {
+		return
+	}
+	n.markPeer(peer, true)
+	theirWork, ok := new(big.Int).SetString(their.CumWork, 16)
+	if !ok || theirWork.Cmp(n.Chain.CumWork()) <= 0 {
+		return
+	}
+	// Find the common ancestor (binary search over heights).
+	ourH := n.Chain.Height()
+	lo, hi := uint64(0), ourH
+	if their.Height < hi {
+		hi = their.Height
+	}
+	anc := uint64(0)
+	for lo <= hi {
+		mid := (lo + hi) / 2
+		var hr struct {
+			Hash string `json:"hash"`
+		}
+		if err := n.getJSON(fmt.Sprintf("%s/p2p/hash?h=%d", peer, mid), &hr); err != nil {
+			return
+		}
+		ours := n.Chain.BlockAt(mid)
+		if ours != nil && ours.Hash() == hr.Hash {
+			anc = mid
+			lo = mid + 1
+		} else {
+			if mid == 0 {
+				return // genesis mismatch: not our network
+			}
+			hi = mid - 1
+		}
+	}
+	log.Printf("sync: peer %s ahead (h=%d vs %d), fetching from %d", peer, their.Height, ourH, anc+1)
+	var pending []*core.Block
+	from := anc + 1
+	for {
+		var batch []*core.Block
+		url := fmt.Sprintf("%s/p2p/blocks?from=%d&count=%d", peer, from, batchBlocks)
+		if err := n.getJSON(url, &batch); err != nil || len(batch) == 0 {
+			break
+		}
+		pending = append(pending, batch...)
+		from += uint64(len(batch))
+		if from > their.Height || len(pending) >= 5000 {
+			if err := n.Chain.TryAdoptChain(anc+1, pending); err != nil {
+				log.Printf("sync: adopt failed: %v", err)
+				return
+			}
+			anc = n.Chain.Height()
+			pending = nil
+			if from > their.Height {
+				break
+			}
+		}
+	}
+	if len(pending) > 0 {
+		if err := n.Chain.TryAdoptChain(anc+1, pending); err != nil {
+			log.Printf("sync: adopt failed: %v", err)
+			return
+		}
+	}
+	log.Printf("sync: now at height %d", n.Chain.Height())
+}
+
+func (n *Node) discoverPeers() {
+	for _, p := range n.peerList() {
+		var list []string
+		if err := n.getJSON(p+"/p2p/peers", &list); err == nil {
+			for _, u := range list {
+				n.addPeer(u)
+			}
+		}
+	}
+}
+
+func (n *Node) broadcastBlock(b *core.Block) {
+	for _, p := range n.peerList() {
+		go func(peer string) {
+			var resp map[string]string
+			_ = n.postJSON(peer+"/p2p/block", b, &resp)
+		}(p)
+	}
+}
+
+func (n *Node) broadcastTx(t *core.Tx) {
+	for _, p := range n.peerList() {
+		go func(peer string) {
+			_ = n.postJSON(peer+"/p2p/tx", t, nil)
+		}(p)
+	}
+}
+
+// -------------------------------------------------------------- p2p server
+
+func (n *Node) P2PHandler() http.Handler {
+	mux := http.NewServeMux()
+	reg := func(w http.ResponseWriter, r *http.Request) {
+		if u := r.Header.Get("X-Cerebra-Peer"); u != "" {
+			n.addPeer(u)
+		}
+	}
+	mux.HandleFunc("/p2p/tip", func(w http.ResponseWriter, r *http.Request) {
+		reg(w, r)
+		writeJSON(w, n.myTip())
+	})
+	mux.HandleFunc("/p2p/hash", func(w http.ResponseWriter, r *http.Request) {
+		h, _ := strconv.ParseUint(r.URL.Query().Get("h"), 10, 64)
+		b := n.Chain.BlockAt(h)
+		if b == nil {
+			writeErr(w, 404, "no such height")
+			return
+		}
+		writeJSON(w, map[string]string{"hash": b.Hash()})
+	})
+	mux.HandleFunc("/p2p/blocks", func(w http.ResponseWriter, r *http.Request) {
+		from, _ := strconv.ParseUint(r.URL.Query().Get("from"), 10, 64)
+		count, _ := strconv.Atoi(r.URL.Query().Get("count"))
+		if count <= 0 || count > batchBlocks {
+			count = batchBlocks
+		}
+		writeJSON(w, n.Chain.Blocks(from, count))
+	})
+	mux.HandleFunc("/p2p/block", func(w http.ResponseWriter, r *http.Request) {
+		reg(w, r)
+		var b core.Block
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			writeErr(w, 400, "bad json")
+			return
+		}
+		err := n.Chain.AddBlock(&b)
+		if err == nil {
+			log.Printf("p2p: accepted block %d %s", b.Height, b.Hash()[:16])
+			writeJSON(w, map[string]string{"result": "accepted"})
+			return
+		}
+		if errors.Is(err, errNotTip) || strings.Contains(err.Error(), "not extending tip") {
+			// Maybe a longer chain exists; sync will pick it up.
+			if u := r.Header.Get("X-Cerebra-Peer"); u != "" {
+				go n.syncWithPeer(strings.TrimRight(u, "/"))
+			}
+		}
+		writeErr(w, 400, err.Error())
+	})
+	mux.HandleFunc("/p2p/tx", func(w http.ResponseWriter, r *http.Request) {
+		var t core.Tx
+		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+			writeErr(w, 400, "bad json")
+			return
+		}
+		if err := n.Chain.AddTx(&t); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		writeJSON(w, map[string]string{"result": "accepted"})
+	})
+	mux.HandleFunc("/p2p/peers", func(w http.ResponseWriter, r *http.Request) {
+		reg(w, r)
+		writeJSON(w, n.peerList())
+	})
+	return mux
+}
+
+var errNotTip = errors.New("not extending tip")
+
+func isHex(s string) bool {
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+func isAllDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return len(s) > 0 && len(s) <= 18
+}
+
+// -------------------------------------------------------------- rpc server
+
+func (n *Node) RPCHandler() http.Handler {
+	mux := http.NewServeMux()
+	h := func(path string, fn http.HandlerFunc) {
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			if r.Method == "OPTIONS" {
+				return
+			}
+			fn(w, r)
+		})
+	}
+
+	h("/api/status", func(w http.ResponseWriter, r *http.Request) {
+		tip := n.Chain.Tip()
+		tgt, _ := tip.TargetInt()
+		diff := core.WorkOf(tgt)
+		// Network hashrate estimate over the retarget window.
+		var hashrate float64
+		hgt := n.Chain.Height()
+		if hgt >= 2 {
+			w0 := uint64(core.RetargetWindow)
+			if hgt < w0 {
+				w0 = hgt
+			}
+			first := n.Chain.BlockAt(hgt - w0)
+			dt := float64(tip.Time) - float64(first.Time)
+			if dt > 0 {
+				work := new(big.Int)
+				for i := hgt - w0 + 1; i <= hgt; i++ {
+					t, _ := n.Chain.BlockAt(i).TargetInt()
+					work.Add(work, core.WorkOf(t))
+				}
+				wf, _ := new(big.Float).SetInt(work).Float64()
+				hashrate = wf / dt
+			}
+		}
+		_, epoch := n.Chain.EpochSeedForNext()
+		writeJSON(w, map[string]any{
+			"height":     tip.Height,
+			"tip":        tip.Hash(),
+			"time":       tip.Time,
+			"target":     tip.Target,
+			"difficulty": diff.String(),
+			"supply":     n.Chain.Supply(),
+			"mempool":    len(n.Chain.MempoolTxs()),
+			"peers":      len(n.peerList()),
+			"epoch":      epoch,
+			"reward":     core.BlockSubsidy(tip.Height + 1),
+			"hashrate":   hashrate,
+		})
+	})
+
+	h("/api/balance", func(w http.ResponseWriter, r *http.Request) {
+		addr := r.URL.Query().Get("addr")
+		if !core.ValidAddr(addr) {
+			writeErr(w, 400, "bad address")
+			return
+		}
+		acc := n.Chain.Account(addr)
+		writeJSON(w, map[string]any{"address": addr, "balance": acc.Balance, "nonce": acc.Nonce})
+	})
+
+	h("/api/history", func(w http.ResponseWriter, r *http.Request) {
+		addr := r.URL.Query().Get("addr")
+		if !core.ValidAddr(addr) {
+			writeErr(w, 400, "bad address")
+			return
+		}
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		if limit <= 0 || limit > 200 {
+			limit = 50
+		}
+		writeJSON(w, n.Chain.History(addr, limit))
+	})
+
+	h("/api/blocks", func(w http.ResponseWriter, r *http.Request) {
+		last, _ := strconv.Atoi(r.URL.Query().Get("last"))
+		if last <= 0 || last > 100 {
+			last = 15
+		}
+		hgt := n.Chain.Height()
+		from := uint64(0)
+		if uint64(last) <= hgt {
+			from = hgt - uint64(last) + 1
+		}
+		blocks := n.Chain.Blocks(from, last)
+		out := make([]map[string]any, 0, len(blocks))
+		for i := len(blocks) - 1; i >= 0; i-- {
+			b := blocks[i]
+			out = append(out, map[string]any{
+				"height": b.Height, "hash": b.Hash(), "time": b.Time,
+				"txs": len(b.Txs), "miner": b.Txs[0].To, "reward": b.Txs[0].Amount,
+			})
+		}
+		writeJSON(w, out)
+	})
+
+	h("/api/block", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if hs := q.Get("h"); hs != "" {
+			hgt, err := strconv.ParseUint(hs, 10, 64)
+			if err != nil {
+				writeErr(w, 400, "bad height")
+				return
+			}
+			b := n.Chain.BlockAt(hgt)
+			if b == nil {
+				writeErr(w, 404, "not found")
+				return
+			}
+			writeJSON(w, b)
+			return
+		}
+		if hash := q.Get("hash"); hash != "" {
+			b := n.Chain.BlockByHash(hash)
+			if b == nil {
+				writeErr(w, 404, "not found")
+				return
+			}
+			writeJSON(w, b)
+			return
+		}
+		writeErr(w, 400, "need h= or hash=")
+	})
+
+	h("/api/mempool", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, n.Chain.MempoolTxs())
+	})
+
+	h("/api/tx", func(w http.ResponseWriter, r *http.Request) {
+		// GET /api/tx?id=<txid> looks up a transaction (explorer).
+		if r.Method == "GET" {
+			id := r.URL.Query().Get("id")
+			if len(id) != 64 {
+				writeErr(w, 400, "need id=<64 hex>")
+				return
+			}
+			loc := n.Chain.FindTx(id)
+			if !loc.Found {
+				writeErr(w, 404, "transaction not found")
+				return
+			}
+			writeJSON(w, loc)
+			return
+		}
+		if r.Method != "POST" {
+			writeErr(w, 405, "GET (lookup) or POST (submit) only")
+			return
+		}
+		var t core.Tx
+		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+			writeErr(w, 400, "bad json")
+			return
+		}
+		if err := n.Chain.AddTx(&t); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		go n.broadcastTx(&t)
+		writeJSON(w, map[string]string{"result": "accepted", "txid": t.ID()})
+	})
+
+	h("/api/richlist", func(w http.ResponseWriter, r *http.Request) {
+		n2, _ := strconv.Atoi(r.URL.Query().Get("n"))
+		if n2 <= 0 || n2 > 200 {
+			n2 = 25
+		}
+		writeJSON(w, n.Chain.RichList(n2))
+	})
+
+	// /api/search?q= classifies a query and points the explorer at the right view.
+	h("/api/search", func(w http.ResponseWriter, r *http.Request) {
+		q := strings.TrimSpace(r.URL.Query().Get("q"))
+		switch {
+		case q == "":
+			writeErr(w, 400, "empty query")
+		case core.ValidAddr(q):
+			writeJSON(w, map[string]string{"type": "address", "value": q})
+		case isAllDigits(q):
+			hgt, _ := strconv.ParseUint(q, 10, 64)
+			if n.Chain.BlockAt(hgt) == nil {
+				writeErr(w, 404, "no block at that height")
+				return
+			}
+			writeJSON(w, map[string]any{"type": "block", "height": hgt})
+		case len(q) == 64 && isHex(q):
+			if b := n.Chain.BlockByHash(q); b != nil {
+				writeJSON(w, map[string]any{"type": "block", "height": b.Height})
+				return
+			}
+			if loc := n.Chain.FindTx(q); loc.Found {
+				writeJSON(w, map[string]string{"type": "tx", "value": q})
+				return
+			}
+			writeErr(w, 404, "no block or transaction with that hash")
+		default:
+			writeErr(w, 400, "unrecognized query (height, block hash, txid, or crb1 address)")
+		}
+	})
+
+	h("/api/getwork", func(w http.ResponseWriter, r *http.Request) {
+		addr := r.URL.Query().Get("addr")
+		tmpl, err := n.getTemplate(addr)
+		if err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		seed, epoch := n.Chain.EpochSeedForNext()
+		writeJSON(w, map[string]any{
+			"id":     tmpl.PrevHash + "|" + addr,
+			"header": hex.EncodeToString(tmpl.HeaderBytes()),
+			"target": tmpl.Target,
+			"seed":   hex.EncodeToString(seed),
+			"epoch":  epoch,
+			"height": tmpl.Height,
+		})
+	})
+
+	h("/api/submitwork", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			writeErr(w, 405, "POST only")
+			return
+		}
+		var req struct {
+			ID    string `json:"id"`
+			Nonce uint64 `json:"nonce"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErr(w, 400, "bad json")
+			return
+		}
+		n.tmplMu.Lock()
+		tmpl := n.templates[req.ID]
+		n.tmplMu.Unlock()
+		if tmpl == nil {
+			writeErr(w, 404, "stale or unknown work id")
+			return
+		}
+		b := *tmpl
+		b.Nonce = req.Nonce
+		if err := n.Chain.AddBlock(&b); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		log.Printf("miner: external miner found block %d %s", b.Height, b.Hash()[:16])
+		writeJSON(w, map[string]string{"result": "accepted", "hash": b.Hash()})
+	})
+
+	h("/api/params", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{
+			"coin":             "Cerebra",
+			"ticker":           "CRB",
+			"unit":             core.CoinUnit,
+			"block_time":       core.BlockTargetSpacing,
+			"halving_interval": core.HalvingInterval,
+			"epoch_length":     core.EpochLength,
+			"initial_reward":   core.InitialReward,
+			"max_supply":       uint64(core.InitialReward) * core.HalvingInterval * 2,
+			"algo":             "NeuroMorph v1",
+		})
+	})
+
+	return mux
+}
+
+// getTemplate returns a cached or fresh mining template for `addr`.
+func (n *Node) getTemplate(addr string) (*core.Block, error) {
+	if !core.ValidAddr(addr) {
+		return nil, errors.New("bad or missing addr")
+	}
+	id := n.Chain.Tip().Hash() + "|" + addr
+	n.tmplMu.Lock()
+	defer n.tmplMu.Unlock()
+	if t, ok := n.templates[id]; ok && time.Since(time.Unix(int64(t.Time), 0)) < templateMaxAge {
+		return t, nil
+	}
+	tmpl, err := n.Chain.BuildTemplate(addr)
+	if err != nil {
+		return nil, err
+	}
+	id = tmpl.PrevHash + "|" + addr
+	// Drop templates from older tips.
+	for k := range n.templates {
+		if !strings.HasPrefix(k, tmpl.PrevHash) {
+			delete(n.templates, k)
+		}
+	}
+	n.templates[id] = tmpl
+	return tmpl, nil
+}
+
+// ------------------------------------------------------------ built-in miner
+
+func (n *Node) Mine(threads int, coinbase string) {
+	log.Printf("miner: starting %d threads, paying to %s", threads, coinbase)
+	for i := 0; i < threads; i++ {
+		go n.mineWorker(uint64(i), coinbase)
+	}
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		last := uint64(0)
+		for range t.C {
+			cur := n.hashCount.Load()
+			log.Printf("miner: %.1f H/s (height %d)", float64(cur-last)/30.0, n.Chain.Height())
+			last = cur
+		}
+	}()
+}
+
+func (n *Node) mineWorker(id uint64, coinbase string) {
+	var vm *nm.VM
+	var vmEpoch uint64 = ^uint64(0)
+	for {
+		tmpl, err := n.Chain.BuildTemplate(coinbase)
+		if err != nil {
+			log.Printf("miner: template error: %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		seed, epoch := n.Chain.EpochSeedForNext()
+		if vm == nil || epoch != vmEpoch {
+			vm = nm.NewVM(nm.DeriveParams(seed))
+			vmEpoch = epoch
+		}
+		target, _ := tmpl.TargetInt()
+		header := tmpl.HeaderBytes()
+		prevHash := tmpl.PrevHash
+		nonce := id<<56 | uint64(time.Now().UnixNano())&0xFFFFFFFF<<8
+		deadline := time.Now().Add(templateMaxAge)
+		for time.Now().Before(deadline) {
+			putNonce(header, nonce)
+			hash := vm.Hash(header)
+			n.hashCount.Add(1)
+			if core.HashMeetsTarget(hash, target) {
+				b := *tmpl
+				b.Nonce = nonce
+				if err := n.Chain.AddBlock(&b); err != nil {
+					log.Printf("miner: block rejected: %v", err)
+				} else {
+					log.Printf("miner: FOUND block %d %s", b.Height, b.Hash()[:16])
+				}
+				break
+			}
+			nonce++
+			if n.Chain.Tip().Hash() != prevHash {
+				break // tip moved, rebuild template
+			}
+		}
+	}
+}
+
+func putNonce(header []byte, nonce uint64) {
+	for i := 0; i < 8; i++ {
+		header[core.NonceOffset+i] = byte(nonce >> (8 * i))
+	}
+}
+
+// ---------------------------------------------------------------- serving
+
+func (n *Node) Serve(p2pAddr, rpcAddr string) error {
+	errc := make(chan error, 2)
+	go func() {
+		log.Printf("p2p listening on %s", p2pAddr)
+		errc <- http.ListenAndServe(p2pAddr, n.P2PHandler())
+	}()
+	go func() {
+		log.Printf("rpc listening on %s", rpcAddr)
+		errc <- http.ListenAndServe(rpcAddr, n.RPCHandler())
+	}()
+	go n.SyncLoop()
+	return <-errc
+}

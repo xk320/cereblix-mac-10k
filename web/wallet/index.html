@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cerebra Wallet — веб-кошелёк CRB</title>
+<script src="nacl.min.js"></script>
+<style>
+:root{--bg:#0a0e17;--panel:#111827;--panel2:#1a2336;--acc:#22d3ee;--acc2:#a78bfa;--txt:#e5e7eb;--mut:#8b9bb4;--ok:#34d399;--err:#f87171}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1200px 600px at 70% -10%,#15244a 0%,var(--bg) 60%);color:var(--txt);font:16px/1.55 system-ui,Segoe UI,Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:880px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#06121f;font-size:22px}
+h1{font-size:22px}h1 span{color:var(--acc)}
+a{color:var(--acc);text-decoration:none}
+.card{background:var(--panel);border:1px solid #233047;border-radius:16px;padding:20px;margin-bottom:16px}
+.card h2{font-size:17px;margin-bottom:12px;color:#cbd5e1}
+button{background:linear-gradient(135deg,var(--acc),#0ea5e9);border:0;color:#06121f;font-weight:700;padding:10px 18px;border-radius:10px;cursor:pointer;font-size:15px}
+button.ghost{background:var(--panel2);color:var(--txt);border:1px solid #2c3a55}
+button:disabled{opacity:.5;cursor:default}
+input{width:100%;background:#0c1322;border:1px solid #2c3a55;border-radius:10px;color:var(--txt);padding:10px 12px;font-size:15px;margin:4px 0 12px}
+input:focus{outline:none;border-color:var(--acc)}
+.addr{font-family:ui-monospace,Consolas,monospace;font-size:14px;word-break:break-all;background:#0c1322;border:1px dashed #2c3a55;border-radius:10px;padding:10px 12px;cursor:pointer}
+.bal{font-size:40px;font-weight:800;margin:8px 0}
+.bal small{font-size:18px;color:var(--acc)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1;min-width:140px}
+.muted{color:var(--mut);font-size:13.5px}
+.warn{background:#3a1d1d;border:1px solid #7f1d1d;border-radius:10px;padding:12px;font-size:14px;margin:10px 0}
+.key{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;word-break:break-all;background:#0c1322;border-radius:8px;padding:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:8px 6px;border-bottom:1px solid #1f2b42;text-align:left}
+th{color:var(--mut);font-weight:600}
+.in{color:var(--ok)}.out{color:var(--err)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--acc);padding:12px 20px;border-radius:12px;display:none;max-width:90vw}
+.hidden{display:none}
+.mono{font-family:ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="logo">₢</div>
+  <div><h1>Cerebra <span>Wallet</span></h1>
+  <div class="muted">CRB · NeuroMorph CPU-coin · <a href="../">о проекте</a></div></div>
+</header>
+
+<div id="setup" class="card">
+  <h2>Кошелёк</h2>
+  <p class="muted" style="margin-bottom:12px">Ключи создаются и хранятся <b>только в вашем браузере</b>. Сервер никогда не видит приватный ключ — подпись транзакций происходит локально (ed25519).</p>
+  <div class="row">
+    <button onclick="createWallet()">Создать новый кошелёк</button>
+    <button class="ghost" onclick="document.getElementById('importBox').classList.toggle('hidden')">Импортировать ключ</button>
+  </div>
+  <div id="importBox" class="hidden" style="margin-top:14px">
+    <input id="importKey" placeholder="Приватный ключ (128 hex-символов)">
+    <button onclick="importWallet()">Импортировать</button>
+  </div>
+  <div id="newKeyBox" class="hidden">
+    <div class="warn">⚠️ Сохраните приватный ключ в надёжном месте. Это <b>единственный</b> способ восстановить кошелёк. Потеряете ключ — потеряете монеты.</div>
+    <div class="key" id="newKey"></div>
+    <div style="margin-top:10px"><button onclick="ackKey()">Я сохранил ключ — продолжить</button></div>
+  </div>
+</div>
+
+<div id="main" class="hidden">
+  <div class="card">
+    <h2>Баланс</h2>
+    <div class="bal"><span id="balance">…</span> <small>CRB</small></div>
+    <div class="muted">Ваш адрес (нажмите, чтобы скопировать):</div>
+    <div class="addr" id="myaddr" onclick="copyAddr()"></div>
+    <div class="muted" style="margin-top:8px">nonce: <span id="nonce">0</span> · <a href="#" onclick="exportKey();return false">показать приватный ключ</a> · <a href="#" onclick="logout();return false">выйти</a></div>
+  </div>
+
+  <div class="card">
+    <h2>Отправить CRB</h2>
+    <input id="sendTo" placeholder="Адрес получателя (crb1...)">
+    <div class="row">
+      <div><input id="sendAmount" placeholder="Сумма CRB" type="number" step="0.00000001" min="0"></div>
+      <div><input id="sendFee" value="0.0001" type="number" step="0.0001" min="0" title="комиссия"></div>
+    </div>
+    <button id="sendBtn" onclick="sendTx()">Подписать и отправить</button>
+    <div class="muted" style="margin-top:8px">Комиссия достаётся майнеру блока. Минимум не задан — но блоки собираются по убыванию комиссии.</div>
+  </div>
+
+  <div class="card">
+    <h2>История</h2>
+    <table><thead><tr><th>Блок</th><th>Тип</th><th>Адрес</th><th>Сумма</th></tr></thead>
+    <tbody id="history"><tr><td colspan="4" class="muted">загрузка…</td></tr></tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Сеть</h2>
+  <div class="muted" id="netinfo">подключение…</div>
+</div>
+</div>
+<div id="toast"></div>
+
+<script>
+const API = location.pathname.replace(/wallet\/?.*/, '') + 'api';
+const UNIT = 1e8;
+let keys = null; // {secretKey: Uint8Array(64), publicKey: Uint8Array(32), address}
+
+const $ = id => document.getElementById(id);
+const hex = b => Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
+const unhex = s => new Uint8Array(s.match(/.{2}/g).map(x=>parseInt(x,16)));
+const fmt = v => (v/UNIT).toLocaleString('ru-RU',{maximumFractionDigits:8});
+
+function toast(msg, ms=3500){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',ms); }
+
+// Pure-JS SHA-256: WebCrypto (crypto.subtle) is unavailable on plain HTTP,
+// so we never depend on it.
+function sha256(data){
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const len = data.length, bitLen = len * 8;
+  const padded = new Uint8Array(((len + 8) >> 6 << 6) + 64);
+  padded.set(data); padded[len] = 0x80;
+  const dv = new DataView(padded.buffer);
+  dv.setUint32(padded.length - 8, Math.floor(bitLen / 0x100000000));
+  dv.setUint32(padded.length - 4, bitLen >>> 0);
+  const w = new Int32Array(64);
+  const rr = (x,n) => (x >>> n) | (x << (32 - n));
+  for (let i = 0; i < padded.length; i += 64){
+    for (let t = 0; t < 16; t++) w[t] = dv.getInt32(i + t*4);
+    for (let t = 16; t < 64; t++){
+      const s0 = rr(w[t-15],7) ^ rr(w[t-15],18) ^ (w[t-15] >>> 3);
+      const s1 = rr(w[t-2],17) ^ rr(w[t-2],19) ^ (w[t-2] >>> 10);
+      w[t] = (w[t-16] + s0 + w[t-7] + s1) | 0;
+    }
+    let [a,b,c,d,e,f,g,h] = H;
+    for (let t = 0; t < 64; t++){
+      const S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[t] + w[t]) | 0;
+      const S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22);
+      const mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) | 0;
+      h=g; g=f; f=e; e=(d + t1)|0; d=c; c=b; b=a; a=(t1 + t2)|0;
+    }
+    H = H.map((x,j) => (x + [a,b,c,d,e,f,g,h][j]) | 0);
+  }
+  const out = new Uint8Array(32);
+  const ov = new DataView(out.buffer);
+  H.forEach((x,j) => ov.setInt32(j*4, x));
+  return out;
+}
+
+async function addrFromPub(pub){
+  return 'crb1' + hex(sha256(pub).slice(0,20));
+}
+
+async function setKeys(secretHex){
+  const sk = unhex(secretHex);
+  if (sk.length !== 64) throw new Error('ключ должен быть 128 hex-символов');
+  const kp = nacl.sign.keyPair.fromSecretKey(sk);
+  keys = { secretKey: sk, publicKey: kp.publicKey, address: await addrFromPub(kp.publicKey) };
+}
+
+async function createWallet(){
+  const kp = nacl.sign.keyPair();
+  $('newKey').textContent = hex(kp.secretKey);
+  $('newKeyBox').classList.remove('hidden');
+  $('importBox').classList.add('hidden');
+  await setKeys(hex(kp.secretKey));
+}
+
+async function ackKey(){
+  localStorage.setItem('cerebra_sk', hex(keys.secretKey));
+  enterWallet();
+}
+
+async function importWallet(){
+  try {
+    await setKeys($('importKey').value.trim());
+    localStorage.setItem('cerebra_sk', hex(keys.secretKey));
+    enterWallet();
+  } catch(e){ toast('Ошибка: ' + e.message); }
+}
+
+function exportKey(){
+  if (confirm('Показать приватный ключ? Убедитесь, что никто не смотрит на экран.'))
+    prompt('Ваш приватный ключ:', hex(keys.secretKey));
+}
+
+function logout(){
+  if (confirm('Удалить ключ из этого браузера? Без сохранённой копии ключа вы потеряете доступ к монетам.')){
+    localStorage.removeItem('cerebra_sk'); location.reload();
+  }
+}
+
+function enterWallet(){
+  $('setup').classList.add('hidden');
+  $('main').classList.remove('hidden');
+  $('myaddr').textContent = keys.address;
+  refresh();
+}
+
+function copyAddr(){ navigator.clipboard.writeText(keys.address); toast('Адрес скопирован'); }
+
+async function api(path, opts){
+  const r = await fetch(API + path, opts);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+
+async function refresh(){
+  if (!keys) return;
+  try {
+    const b = await api('/balance?addr=' + keys.address);
+    $('balance').textContent = fmt(b.balance);
+    $('nonce').textContent = b.nonce;
+    const hist = await api('/history?addr=' + keys.address + '&limit=30');
+    const rows = (hist||[]).map(h => {
+      const out = h.from === keys.address;
+      const peer = out ? h.to : h.from;
+      return `<tr><td>${h.height}</td><td class="${out?'out':'in'}">${out?'− отправка':'+ получение'}</td>
+        <td class="mono" style="font-size:12px">${peer.slice(0,16)}…</td>
+        <td class="${out?'out':'in'}">${out?'−':'+'}${fmt(h.amount)}</td></tr>`;
+    }).join('');
+    $('history').innerHTML = rows || '<tr><td colspan="4" class="muted">пока пусто — намайните или получите первые CRB</td></tr>';
+  } catch(e){ console.error(e); }
+}
+
+async function netInfo(){
+  try {
+    const s = await api('/status');
+    $('netinfo').innerHTML = `высота <b>${s.height}</b> · эпоха ${s.epoch} · хэшрейт сети ~<b>${Math.round(s.hashrate)}</b> H/s ·
+      эмиссия ${fmt(s.supply)} CRB · награда за блок ${fmt(s.reward)} CRB · мемпул ${s.mempool}`;
+  } catch(e){ $('netinfo').textContent = 'нода недоступна: ' + e.message; }
+}
+
+async function sendTx(){
+  try {
+    const to = $('sendTo').value.trim();
+    const amount = Math.round(parseFloat($('sendAmount').value) * UNIT);
+    const fee = Math.round(parseFloat($('sendFee').value || '0') * UNIT);
+    if (!/^crb1[0-9a-f]{40}$/.test(to)) throw new Error('некорректный адрес получателя');
+    if (!(amount > 0)) throw new Error('некорректная сумма');
+    const b = await api('/balance?addr=' + keys.address);
+    const tx = { from_pub: hex(keys.publicKey), to, amount, fee, nonce: b.nonce };
+    const payload = `cerebra-tx-v1|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`;
+    tx.sig = hex(nacl.sign.detached(new TextEncoder().encode(payload), keys.secretKey));
+    $('sendBtn').disabled = true;
+    const res = await api('/tx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(tx)});
+    toast('Отправлено! TX ' + res.txid.slice(0,16) + '… — попадёт в ближайший блок');
+    $('sendTo').value = ''; $('sendAmount').value = '';
+    setTimeout(refresh, 2000);
+  } catch(e){ toast('Ошибка: ' + e.message, 6000); }
+  finally { $('sendBtn').disabled = false; }
+}
+
+(async function init(){
+  const saved = localStorage.getItem('cerebra_sk');
+  if (saved) { try { await setKeys(saved); enterWallet(); } catch(e){ localStorage.removeItem('cerebra_sk'); } }
+  netInfo();
+  setInterval(netInfo, 15000);
+  setInterval(refresh, 15000);
+})();
+</script>
+</body>
+</html>

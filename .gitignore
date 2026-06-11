@@ -1,0 +1,27 @@
+# Secrets — NEVER commit
+.secrets/
+KEYS.txt
+NETWORK_WALLET.txt
+*.pat
+*.token
+# tools/srv.py contains the deploy server root password
+tools/srv.py
+
+# Wallets & chain data
+wallet.json
+*.wallet
+cerebra-data/
+*-data/
+
+# Local test artifacts & binaries
+local-test/
+release/
+bin/
+*.exe
+cerebra-miner-linux-amd64
+cerebrad-linux-amd64
+cerebra-wallet-linux-amd64
+
+# OS / editor
+.DS_Store
+Thumbs.db
