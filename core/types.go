@@ -44,7 +44,7 @@ const (
 	// so it cannot be replayed onto a fork or testnet that shares the crb1
 	// address format. Height-gated: txs in blocks below it keep the original
 	// payload and stay valid, so the existing chain is not invalidated.
-	ChainIDHeight = 1000
+	ChainIDHeight = 700
 )
 
 // MaxTarget is the easiest allowed target (difficulty floor).
