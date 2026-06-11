@@ -46,6 +46,19 @@ type Chain struct {
 	paramsCache map[uint64]*nm.Params // epoch -> params
 	vmCache     map[uint64]*nm.VM     // epoch -> validation VM
 
+	// 51%-resistance knobs (decentralized, no trusted party).
+	// MaxReorgDepth rejects any reorg that would replace more than this many
+	// of our own blocks; 0 disables the cap. ReorgPenaltyPermille makes deep
+	// reorgs cost disproportionately more work: a candidate must exceed our
+	// work by (depth * permille / 1000); 0 disables the penalty.
+	MaxReorgDepth        uint64
+	ReorgPenaltyPermille uint64
+
+	// Checkpoints is an OPTIONAL, off-by-default break-glass against deep
+	// attacks: height -> block hash. Empty = fully decentralized. When set,
+	// the chain refuses any history that conflicts with a checkpoint.
+	Checkpoints map[uint64]string
+
 	OnNewBlock func(b *Block) // called outside lock after a block is adopted
 }
 
@@ -61,6 +74,11 @@ func NewChain(dir string) (*Chain, error) {
 		verifiedPow: map[string]bool{},
 		paramsCache: map[uint64]*nm.Params{},
 		vmCache:     map[uint64]*nm.VM{},
+		// Sane defaults: cap deep rewrites at 100 blocks (~1h40m at 60s),
+		// no work penalty, no checkpoints. All overridable by the node.
+		MaxReorgDepth:        100,
+		ReorgPenaltyPermille: 0,
+		Checkpoints:          map[uint64]string{},
 	}
 	if err := c.load(); err != nil {
 		return nil, err
@@ -407,6 +425,23 @@ func (c *Chain) TryAdoptChain(startHeight uint64, newBlocks []*Block) error {
 	if startHeight == 0 || startHeight > uint64(len(c.blocks)) {
 		return errors.New("bad fork point")
 	}
+
+	// Decentralized 51% guard #1: reject reorgs that rewrite too much history.
+	// depth = how many of our own blocks would be discarded.
+	depth := uint64(len(c.blocks)) - startHeight
+	if c.MaxReorgDepth > 0 && depth > c.MaxReorgDepth {
+		return fmt.Errorf("reorg too deep: %d blocks (cap %d)", depth, c.MaxReorgDepth)
+	}
+
+	// Break-glass guard: never reorg below or across a configured checkpoint.
+	if len(c.Checkpoints) > 0 {
+		for h := range c.Checkpoints {
+			if h >= startHeight {
+				return fmt.Errorf("reorg conflicts with checkpoint at height %d", h)
+			}
+		}
+	}
+
 	candidate := make([]*Block, startHeight, startHeight+uint64(len(newBlocks)))
 	copy(candidate, c.blocks[:startHeight])
 
@@ -427,8 +462,17 @@ func (c *Chain) TryAdoptChain(startHeight uint64, newBlocks []*Block) error {
 		t, _ := b.TargetInt()
 		work.Add(work, WorkOf(t))
 	}
-	if work.Cmp(c.cumWork) <= 0 {
-		return errors.New("candidate chain has no more work")
+	// Decentralized 51% guard #2: a candidate must always have more work, and
+	// for deeper reorgs it must have *disproportionately* more (penalty), so a
+	// brief 51% burst can't cheaply rewrite many confirmed blocks.
+	threshold := new(big.Int).Set(c.cumWork)
+	if c.ReorgPenaltyPermille > 0 && depth > 1 {
+		extra := new(big.Int).Mul(c.cumWork, big.NewInt(int64(depth*c.ReorgPenaltyPermille)))
+		extra.Div(extra, big.NewInt(1000))
+		threshold.Add(threshold, extra)
+	}
+	if work.Cmp(threshold) <= 0 {
+		return errors.New("candidate chain lacks sufficient work for its reorg depth")
 	}
 	c.blocks = candidate
 	c.state = st

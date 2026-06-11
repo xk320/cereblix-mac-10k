@@ -21,6 +21,8 @@ func main() {
 		mine     = flag.Bool("mine", false, "enable built-in miner")
 		threads  = flag.Int("threads", 2, "miner threads")
 		coinbase = flag.String("coinbase", "", "address that receives block rewards")
+		maxReorg = flag.Uint64("maxreorg", 100, "reject reorgs deeper than N blocks (0 = unlimited); decentralized 51% guard")
+		reorgPen = flag.Uint64("reorg-penalty", 0, "extra work permille per reorg-depth block required (0 = off)")
 	)
 	flag.Parse()
 	log.SetFlags(log.LstdFlags)
@@ -29,7 +31,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("chain init: %v", err)
 	}
-	log.Printf("cereblixd starting | height %d | tip %s", chain.Height(), chain.Tip().Hash()[:16])
+	chain.MaxReorgDepth = *maxReorg
+	chain.ReorgPenaltyPermille = *reorgPen
+	log.Printf("cereblixd starting | height %d | tip %s | maxreorg %d", chain.Height(), chain.Tip().Hash()[:16], *maxReorg)
 
 	var seeds []string
 	for _, p := range strings.Split(*peers, ",") {
