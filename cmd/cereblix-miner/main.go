@@ -1,5 +1,5 @@
-// cerebra-miner is the standalone NeuroMorph CPU miner for AMD64 (Intel/AMD).
-// It pulls work from any Cerebra node over HTTP (getwork) and submits shares.
+// cereblix-miner is the standalone NeuroMorph CPU miner for AMD64 (Intel/AMD).
+// It pulls work from any Cereblix node over HTTP (getwork) and submits shares.
 package main
 
 import (
@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cerebra/core"
-	nm "cerebra/neuromorph"
+	"cereblix/core"
+	nm "cereblix/neuromorph"
 )
 
 type work struct {
@@ -40,13 +40,13 @@ var (
 )
 
 func main() {
-	flag.StringVar(&nodeURL, "node", "http://188.34.181.191/cerebra/api", "node RPC base URL")
+	flag.StringVar(&nodeURL, "node", "http://188.34.181.191/cereblix/api", "node RPC base URL")
 	flag.StringVar(&addr, "addr", "", "your CRB address (rewards go here)")
 	threads := flag.Int("threads", runtime.NumCPU(), "mining threads")
 	flag.Parse()
 
 	fmt.Println("╔══════════════════════════════════════════════╗")
-	fmt.Println("║   Cerebra NeuroMorph CPU miner  v1.0          ║")
+	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.0       ║")
 	fmt.Println("║   one CPU = one vote                          ║")
 	fmt.Println("╚══════════════════════════════════════════════╝")
 	// Double-click friendly: ask for the address instead of dying instantly.
@@ -55,7 +55,7 @@ func main() {
 		if addr != "" {
 			fmt.Println("Invalid address. It must look like: crb1 + 40 hex chars.")
 		}
-		fmt.Println("No wallet yet? Create one at http://188.34.181.191/cerebra/wallet/")
+		fmt.Println("No wallet yet? Create one at http://188.34.181.191/cereblix/wallet/")
 		fmt.Print("Enter your CRB address (crb1...): ")
 		line, err := stdin.ReadString('\n')
 		if err != nil {

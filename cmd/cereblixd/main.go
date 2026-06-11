@@ -1,4 +1,4 @@
-// cerebrad is the Cerebra full node daemon.
+// cereblixd is the Cereblix full node daemon.
 package main
 
 import (
@@ -7,13 +7,13 @@ import (
 	"os"
 	"strings"
 
-	"cerebra/core"
-	"cerebra/node"
+	"cereblix/core"
+	"cereblix/node"
 )
 
 func main() {
 	var (
-		datadir  = flag.String("datadir", "cerebra-data", "data directory")
+		datadir  = flag.String("datadir", "cereblix-data", "data directory")
 		p2pAddr  = flag.String("p2p", ":18750", "p2p listen address")
 		rpcAddr  = flag.String("rpc", "127.0.0.1:18751", "rpc listen address")
 		peers    = flag.String("peers", "http://188.34.181.191:18750", "comma-separated seed peer URLs")
@@ -29,7 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("chain init: %v", err)
 	}
-	log.Printf("cerebrad starting | height %d | tip %s", chain.Height(), chain.Tip().Hash()[:16])
+	log.Printf("cereblixd starting | height %d | tip %s", chain.Height(), chain.Tip().Hash()[:16])
 
 	var seeds []string
 	for _, p := range strings.Split(*peers, ",") {
@@ -41,7 +41,7 @@ func main() {
 
 	if *mine {
 		if !core.ValidAddr(*coinbase) {
-			log.Println("error: -mine requires a valid -coinbase address (create one with cerebra-wallet -new)")
+			log.Println("error: -mine requires a valid -coinbase address (create one with cereblix-wallet new)")
 			os.Exit(1)
 		}
 		n.Mine(*threads, *coinbase)

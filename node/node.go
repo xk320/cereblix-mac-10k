@@ -1,4 +1,4 @@
-// Package node wires the Cerebra chain into a P2P + RPC daemon with an
+// Package node wires the Cereblix chain into a P2P + RPC daemon with an
 // optional built-in CPU miner.
 package node
 
@@ -20,8 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cerebra/core"
-	nm "cerebra/neuromorph"
+	"cereblix/core"
+	nm "cereblix/neuromorph"
 )
 
 const (
@@ -665,7 +665,7 @@ func (n *Node) RPCHandler() http.Handler {
 
 	h("/api/params", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{
-			"coin":             "Cerebra",
+			"coin":             "Cereblix",
 			"ticker":           "CRB",
 			"unit":             core.CoinUnit,
 			"block_time":       core.BlockTargetSpacing,

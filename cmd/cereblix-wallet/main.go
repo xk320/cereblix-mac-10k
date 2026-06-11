@@ -1,4 +1,4 @@
-// cerebra-wallet is the standalone Cerebra wallet: a local key store plus a
+// cereblix-wallet is the standalone Cereblix wallet: a local key store plus a
 // thin RPC client and block explorer. Like bitcoin-cli it needs a node to talk
 // to (the public seed by default, or your own with -node), but the keys live
 // only on your machine — it does not depend on the website.
@@ -6,12 +6,12 @@
 // Run with no command for an interactive shell, or pass a one-shot command for
 // scripting:
 //
-//	cerebra-wallet                      # interactive shell
-//	cerebra-wallet new main             # create address labelled "main"
-//	cerebra-wallet list                 # addresses + balances
-//	cerebra-wallet send crb1... 12.5    # sign locally and broadcast
-//	cerebra-wallet tx <txid>            # explorer: look up a transaction
-//	cerebra-wallet block 42             # explorer: show a block
+//	cereblix-wallet                      # interactive shell
+//	cereblix-wallet new main             # create address labelled "main"
+//	cereblix-wallet list                 # addresses + balances
+//	cereblix-wallet send crb1... 12.5    # sign locally and broadcast
+//	cereblix-wallet tx <txid>            # explorer: look up a transaction
+//	cereblix-wallet block 42             # explorer: show a block
 package main
 
 import (
@@ -37,7 +37,7 @@ import (
 	"strings"
 	"time"
 
-	"cerebra/core"
+	"cereblix/core"
 )
 
 const kdfIters = 200_000
@@ -82,7 +82,7 @@ func defaultWalletPath() string {
 	if err != nil || home == "" {
 		home = "."
 	}
-	return filepath.Join(home, ".cerebra", "wallet.json")
+	return filepath.Join(home, ".cereblix", "wallet.json")
 }
 
 func loadStore(path string) (*Store, error) {
@@ -303,8 +303,8 @@ func ask(prompt string) string {
 // --------------------------------------------------------------------- main
 
 func main() {
-	flag.StringVar(&nodeURL, "node", "http://188.34.181.191/cerebra/api", "node RPC base URL")
-	flag.StringVar(&walletPath, "wallet", "", "wallet file path (default ~/.cerebra/wallet.json)")
+	flag.StringVar(&nodeURL, "node", "http://188.34.181.191/cereblix/api", "node RPC base URL")
+	flag.StringVar(&walletPath, "wallet", "", "wallet file path (default ~/.cereblix/wallet.json)")
 	flag.Parse()
 	if walletPath == "" {
 		walletPath = defaultWalletPath()
@@ -328,13 +328,13 @@ func main() {
 }
 
 func interactive() {
-	fmt.Println("Cerebra wallet — interactive shell. Type 'help' for commands, 'quit' to exit.")
+	fmt.Println("Cereblix wallet — interactive shell. Type 'help' for commands, 'quit' to exit.")
 	fmt.Printf("wallet: %s | node: %s | %d address(es)\n", walletPath, nodeURL, len(store.keys))
 	if len(store.keys) == 0 {
 		fmt.Println("No addresses yet. Run 'new' to create one.")
 	}
 	for {
-		fmt.Print("cerebra> ")
+		fmt.Print("cereblix> ")
 		line, err := in.ReadString('\n')
 		if err != nil {
 			fmt.Println()

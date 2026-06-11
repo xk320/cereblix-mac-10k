@@ -1,10 +1,10 @@
-# Cerebra (CRB)
+# Cereblix (CRB)
 
 **A CPU-only cryptocurrency built from scratch on the self-mutating NeuroMorph
 proof-of-work algorithm.** No GPU, no ASIC — ever. One CPU, one vote.
 
-- 🌐 Site & explorer: http://188.34.181.191/cerebra/
-- 💼 Web wallet: http://188.34.181.191/cerebra/wallet/
+- 🌐 Site & explorer: http://188.34.181.191/cereblix/
+- 💼 Web wallet: http://188.34.181.191/cereblix/wallet/
 - 📖 Full design: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 > ⚗️ Experimental software, launched in a single day with **zero premine, zero
@@ -14,7 +14,7 @@ proof-of-work algorithm.** No GPU, no ASIC — ever. One CPU, one vote.
 
 ---
 
-## Why Cerebra
+## Why Cereblix
 
 - **🧬 Self-mutating algorithm.** Every 4096 blocks (~2.8 days) NeuroMorph
   rebuilds its own VM semantics from chain entropy — opcode weights, program
@@ -46,30 +46,30 @@ Requires Go 1.21+. Zero external dependencies (standard library only).
 
 ```sh
 git clone https://github.com/Cerebra-CBR/cerebra.git
-cd cerebra
+cd cereblix
 go build ./...
 
 # or build each tool:
-go build -o cerebrad        ./cmd/cerebrad
-go build -o cerebra-miner   ./cmd/cerebra-miner
-go build -o cerebra-wallet  ./cmd/cerebra-wallet
+go build -o cereblixd        ./cmd/cereblixd
+go build -o cereblix-miner   ./cmd/cereblix-miner
+go build -o cereblix-wallet  ./cmd/cereblix-wallet
 ```
 
 Cross-compile (e.g. Windows from Linux):
 
 ```sh
-GOOS=windows GOARCH=amd64 go build -o cerebra-miner.exe ./cmd/cerebra-miner
+GOOS=windows GOARCH=amd64 go build -o cereblix-miner.exe ./cmd/cereblix-miner
 ```
 
 ## Mine
 
 ```sh
 # 1. create a wallet address
-cerebra-wallet new main
+cereblix-wallet new main
 
 # 2. point the miner at any node (the public seed by default)
-cerebra-miner -addr crb1YOURADDRESS            # uses all cores
-cerebra-miner -addr crb1YOURADDRESS -threads 4 # limit cores
+cereblix-miner -addr crb1YOURADDRESS            # uses all cores
+cereblix-miner -addr crb1YOURADDRESS -threads 4 # limit cores
 ```
 
 > Antivirus software often flags unsigned CPU miners as PUA — add an exclusion
@@ -78,8 +78,8 @@ cerebra-miner -addr crb1YOURADDRESS -threads 4 # limit cores
 ## Run a full node
 
 ```sh
-cerebrad -datadir ./data                       # follow the chain
-cerebrad -datadir ./data -mine -threads 2 -coinbase crb1YOURADDRESS  # node + miner
+cereblixd -datadir ./data                       # follow the chain
+cereblixd -datadir ./data -mine -threads 2 -coinbase crb1YOURADDRESS  # node + miner
 ```
 
 Your own node's RPC is at `http://127.0.0.1:18751/api`. Point the wallet/miner
@@ -88,18 +88,18 @@ at it with `-node http://127.0.0.1:18751/api`.
 ## Standalone CLI wallet
 
 A local key store + RPC client + block explorer, independent of the website
-(like `bitcoin-cli`). Keys live only on your machine in `~/.cerebra/wallet.json`
+(like `bitcoin-cli`). Keys live only on your machine in `~/.cereblix/wallet.json`
 (optionally passphrase-encrypted with PBKDF2 + AES-GCM).
 
 ```sh
-cerebra-wallet                      # interactive shell
-cerebra-wallet new main             # create address
-cerebra-wallet list                 # addresses + balances
-cerebra-wallet send crb1... 12.5    # sign locally, broadcast
-cerebra-wallet encrypt              # passphrase-protect the wallet
-cerebra-wallet tx <txid>            # explorer: look up a transaction
-cerebra-wallet block 42             # explorer: show a block
-cerebra-wallet richlist             # top addresses
+cereblix-wallet                      # interactive shell
+cereblix-wallet new main             # create address
+cereblix-wallet list                 # addresses + balances
+cereblix-wallet send crb1... 12.5    # sign locally, broadcast
+cereblix-wallet encrypt              # passphrase-protect the wallet
+cereblix-wallet tx <txid>            # explorer: look up a transaction
+cereblix-wallet block 42             # explorer: show a block
+cereblix-wallet richlist             # top addresses
 ```
 
 ## Repository layout
@@ -108,7 +108,7 @@ cerebra-wallet richlist             # top addresses
 neuromorph/   NeuroMorph PoW virtual machine
 core/         chain, state, mempool, consensus rules
 node/         P2P sync, JSON RPC, getwork/submitwork, built-in miner
-cmd/          cerebrad, cerebra-miner, cerebra-wallet
+cmd/          cereblixd, cereblix-miner, cereblix-wallet
 web/          project site + block explorer + web wallet
 deploy/       systemd unit
 ```

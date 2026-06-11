@@ -1,3 +1,3 @@
-module cerebra
+module cereblix
 
 go 1.21

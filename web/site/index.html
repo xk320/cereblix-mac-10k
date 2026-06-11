@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cerebra (CRB) — CPU-монета на алгоритме NeuroMorph</title>
-<meta name="description" content="Cerebra — криптовалюта 2026 года, которую можно майнить только на процессоре. Самомутирующий PoW-алгоритм NeuroMorph, честный запуск без премайна.">
+<title>Cereblix (CRB) — CPU-only coin on the NeuroMorph algorithm</title>
+<meta name="description" content="Cereblix — a 2026 cryptocurrency you can mine only on a CPU. Self-mutating NeuroMorph PoW, fair launch with no premine.">
 <style>
 :root{--bg:#0a0e17;--panel:#111827;--panel2:#1a2336;--acc:#22d3ee;--acc2:#a78bfa;--txt:#e5e7eb;--mut:#8b9bb4;--ok:#34d399}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -16,13 +16,14 @@ nav b{font-size:19px}
 nav a{color:var(--mut);text-decoration:none;font-size:15px}
 nav a:hover{color:var(--acc)}
 nav .btn{margin-left:auto}
-.btn{display:inline-block;background:linear-gradient(135deg,var(--acc),#0ea5e9);color:#06121f;font-weight:700;padding:11px 22px;border-radius:12px;text-decoration:none}
-.btn.ghost{background:var(--panel2);color:var(--txt);border:1px solid #2c3a55}
+.langsw{display:inline-flex;gap:2px;border:1px solid #2c3a55;border-radius:8px;overflow:hidden;margin-left:10px}
+.langsw button{background:var(--panel2);color:var(--mut);border:0;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:600}
+.langsw button.on{background:var(--acc);color:#06121f}
 .hero{padding:64px 0 36px;text-align:center;background:radial-gradient(900px 420px at 50% -20%,#15244a 0%,transparent 70%)}
-.hero h1{font-size:46px;line-height:1.15;max-width:820px;margin:0 auto 18px}
+.hero h1{font-size:46px;line-height:1.15;max-width:860px;margin:0 auto 18px}
 .hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero p{color:var(--mut);max-width:680px;margin:0 auto 28px;font-size:18px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:36px 0}
+.hero p{color:var(--mut);max-width:700px;margin:0 auto 28px;font-size:18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:36px 0}
 .stat{background:var(--panel);border:1px solid #233047;border-radius:14px;padding:16px;text-align:center}
 .stat b{display:block;font-size:24px;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat b.sm{font-size:18px}
@@ -49,154 +50,276 @@ th{color:var(--mut)}
 .faq p{color:var(--mut);margin-top:10px;font-size:15px}
 footer{padding:36px 0;color:var(--mut);font-size:14px;border-top:1px solid #1f2b42;margin-top:30px}
 .warn{background:#241a3a;border:1px solid #4c3a7a;border-radius:12px;padding:14px 18px;font-size:14.5px;color:#cbd5e1;margin-top:18px}
+/* DNA double helix — the "-lix" (helix) in Cereblix, the self-mutating chain */
+.dna{display:flex;justify-content:center;align-items:center;gap:7px;height:64px;margin:30px 0 8px;overflow:hidden}
+.dna .bp{position:relative;width:3px;height:46px;flex:0 0 auto}
+.dna .bp i{position:absolute;left:50%;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;animation:dna 3s ease-in-out infinite}
+.dna .bp i.a{background:var(--acc);animation-name:dnaA}
+.dna .bp i.b{background:var(--acc2);animation-name:dnaB}
+.dna .bp s{position:absolute;left:50%;top:50%;width:1px;height:0;margin-left:-0.5px;background:linear-gradient(var(--acc),var(--acc2));opacity:.25;transform:translateY(-50%);animation:dnaR 3s ease-in-out infinite}
+@keyframes dnaA{0%,100%{top:0;transform:scale(1);opacity:1}50%{top:37px;transform:scale(.55);opacity:.45}}
+@keyframes dnaB{0%,100%{top:37px;transform:scale(.55);opacity:.45}50%{top:0;transform:scale(1);opacity:1}}
+@keyframes dnaR{0%,100%{height:37px;top:4px}50%{height:6px;top:20px}}
+.naming{background:linear-gradient(135deg,#13182a,#0c1322);border:1px solid #233047;border-radius:16px;padding:26px}
+.naming .word{font-size:34px;font-weight:800;letter-spacing:.5px;text-align:center;margin-bottom:6px}
+.naming .word .cere{color:var(--acc)}.naming .word .lix{color:var(--acc2)}
+.naming .gloss{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+.naming .gloss div{background:#0c1322;border:1px solid #233047;border-radius:12px;padding:14px}
+.naming .gloss b{color:var(--txt)}.naming .gloss p{color:var(--mut);font-size:14px;margin-top:4px}
+.naming .tag2{text-align:center;color:var(--mut);font-size:14px;margin-top:16px}
+.naming .tag2 b{color:var(--acc)}
+@media(max-width:560px){.naming .gloss{grid-template-columns:1fr}}
 @media(max-width:640px){.hero h1{font-size:32px}}
 </style>
 </head>
 <body>
 <div class="wrap">
 <nav>
-  <div class="logo">₢</div><b>Cerebra</b>
-  <a href="#why">Почему CRB</a><a href="#algo">NeuroMorph</a><a href="#mine">Майнинг</a><a href="explorer.html">Обозреватель</a><a href="https://github.com/Cerebra-CBR/cerebra" target="_blank" rel="noopener">GitHub</a><a href="#faq">FAQ</a>
-  <a class="btn" href="wallet/">Открыть кошелёк</a>
+  <div class="logo">₢</div><b>Cereblix</b>
+  <a href="#why" data-i="nav_why">Why CRB</a><a href="#algo">NeuroMorph</a><a href="#mine" data-i="nav_mine">Mining</a><a href="explorer.html" data-i="nav_explorer">Explorer</a><a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">GitHub</a><a href="#faq">FAQ</a>
+  <a class="btn" href="wallet/" data-i="nav_wallet">Open wallet</a>
+  <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
 </nav>
 </div>
 
 <div class="hero"><div class="wrap">
-  <h1>Монета, которую майнит <em>процессор</em>.<br>Не видеокарта. Не ASIC. <em>Никогда.</em></h1>
-  <p>Cerebra (CRB) — криптовалюта на новом PoW-алгоритме <b>NeuroMorph</b>: виртуальная машина,
-  которая <b>перепрограммирует сама себя каждые 4096 блоков</b>. Чип, способный её майнить, обязан быть процессором — по определению.</p>
-  <a class="btn" href="#mine">Начать майнить за 2 минуты</a>&nbsp;
-  <a class="btn ghost" href="wallet/">Веб-кошелёк</a>
+  <h1 data-i-html="hero_h1">A coin your <em>CPU</em> mines.<br>Not a GPU. Not an ASIC. <em>Ever.</em></h1>
+  <p data-i-html="hero_p">Cereblix (CRB) is a cryptocurrency on the new <b>NeuroMorph</b> PoW algorithm: a virtual machine that <b>reprograms itself every 4096 blocks</b>. A chip able to mine it has to be a processor — by definition.</p>
+  <a class="btn" href="#mine" data-i="hero_cta1">Start mining in 2 minutes</a>&nbsp;
+  <a class="btn ghost" href="wallet/" data-i="hero_cta2">Web wallet</a>
   <div class="stats" id="stats">
-    <div class="stat"><b id="s-height">…</b><span>высота блока</span></div>
-    <div class="stat"><b id="s-hashrate">…</b><span>хэшрейт сети</span></div>
-    <div class="stat"><b id="s-supply">…</b><span>CRB в обращении</span></div>
-    <div class="stat"><b id="s-reward">…</b><span>награда за блок</span></div>
-    <div class="stat"><b id="s-epoch">…</b><span>эпоха NeuroMorph</span></div>
-    <div class="stat"><b id="s-age" class="sm">…</b><span>последний блок</span></div>
+    <div class="stat"><b id="s-height">…</b><span data-i="st_height">block height</span></div>
+    <div class="stat"><b id="s-hashrate">…</b><span data-i="st_hashrate">network hashrate</span></div>
+    <div class="stat"><b id="s-supply">…</b><span data-i="st_supply">CRB in circulation</span></div>
+    <div class="stat"><b id="s-reward">…</b><span data-i="st_reward">block reward</span></div>
+    <div class="stat"><b id="s-epoch">…</b><span data-i="st_epoch">NeuroMorph epoch</span></div>
+    <div class="stat"><b id="s-age" class="sm">…</b><span data-i="st_age">last block</span></div>
   </div>
+  <div class="dna" id="dna" aria-hidden="true"></div>
 </div></div>
 
 <div class="wrap">
+<section id="name">
+  <div class="naming">
+    <div class="word"><span class="cere">Cereb</span><span class="lix">lix</span></div>
+    <div class="dna" id="dna2" aria-hidden="true" style="height:48px;margin:6px 0"></div>
+    <div class="gloss">
+      <div><b data-i="name_cere_t">cereb — from cerebrum (brain) 🧠</b><p data-i="name_cere_b">Your processor does the thinking: NeuroMorph runs brain-like random programs on the CPU. Neurons, synapses, cerebral compute — the whole idea of the coin.</p></div>
+      <div><b data-i="name_lix_t">lix — from helix (the DNA spiral) 🧬</b><p data-i="name_lix_b">DNA means genetics and evolution. Our algorithm rewrites its own "DNA" — the VM's rules — every 4096 blocks, like genetic mutation. The "-lix" encodes that self-mutation.</p></div>
+    </div>
+    <div class="tag2" data-i-html="name_tag">An <b>evolving brain</b> — a self-mutating, brain-like proof-of-work that lives on your CPU. And the ticker reads straight out of the name: <b>C</b>e<b>R</b>e<b>B</b>lix → CRB.</div>
+  </div>
+</section>
+
 <section id="why">
-  <h2>Почему <em>Cerebra</em> — это другое</h2>
+  <h2 data-i-html="why_h2">Why <em>Cereblix</em> is different</h2>
   <div class="grid">
-    <div class="card"><h3><span class="ico">🧬</span>Самомутирующий алгоритм</h3>
-      <p>Каждые 4096 блоков NeuroMorph пересобирает собственную семантику из энтропии цепи: меняются веса инструкций, длина программ, константы, AES-ключи. Спроектировать «замороженное» железо под алгоритм, который ещё не существует, невозможно. Это и есть пожизненная защита от ASIC — не обещание, а свойство конструкции.</p></div>
-    <div class="card"><h3><span class="ico">⚖️</span>1 CPU = 1 голос</h3>
-      <p>Случайные программы со случайными ветвлениями — смерть для GPU: тысячи ядер видеокарты расходятся на первом же ветвлении и простаивают. Майнит любой ноутбук на Intel или AMD. Никаких ферм — сеть принадлежит людям, а не складам с железом.</p></div>
-    <div class="card"><h3><span class="ico">🤝</span>Честный запуск 2026</h3>
-      <p>Ноль премайна. Ноль аллокаций «команде». Ноль VC. Генезис-блок пуст, монеты появляются только из майнинга. Первый блок намайнен в день публикации этого сайта — вы опоздали ровно на ноль.</p></div>
-    <div class="card"><h3><span class="ico">🌱</span>Фоновая энергия</h3>
-      <p>NeuroMorph упирается в кэш и конвейер CPU, а не в потребление: майнинг на 2–4 потоках почти не греет машину и живёт на «холостых» циклах. Это монета фоновых вычислений, а не мегаваттных ангаров.</p></div>
-    <div class="card"><h3><span class="ico">📡</span>Лёгкая нода</h3>
-      <p>Полная нода — один бинарник без зависимостей (чистый Go, stdlib). Запускается на VPS за $3, Raspberry Pi или домашнем ПК. Блокчейн — человекочитаемый JSONL: аудит цепи возможен глазами.</p></div>
-    <div class="card"><h3><span class="ico">🔑</span>Ключи только у вас</h3>
-      <p>Веб-кошелёк подписывает транзакции в браузере (ed25519), приватный ключ не покидает устройство. Тот же ключ работает в CLI-кошельке. Никакой регистрации, почты, KYC.</p></div>
+    <div class="card"><h3><span class="ico">🧬</span><span data-i="why1_t">Self-mutating algorithm</span></h3>
+      <p data-i="why1_b">Every 4096 blocks NeuroMorph rebuilds its own semantics from chain entropy: opcode weights, program length, constants, AES keys all change. Designing frozen hardware for an algorithm that doesn't exist yet is impossible. This is lifelong ASIC resistance — not a promise, but a property of the design.</p></div>
+    <div class="card"><h3><span class="ico">⚖️</span><span data-i="why2_t">1 CPU = 1 vote</span></h3>
+      <p data-i="why2_b">Random programs with random branches are death for GPUs: their thousands of cores diverge on the first branch and stall. Any laptop on Intel or AMD can mine. No farms — the network belongs to people, not warehouses of hardware.</p></div>
+    <div class="card"><h3><span class="ico">🤝</span><span data-i="why3_t">Fair 2026 launch</span></h3>
+      <p data-i="why3_b">Zero premine. Zero team allocation. Zero VC. The genesis block is empty; coins exist only from mining. The first block was mined the day this site went live — you are exactly zero behind.</p></div>
+    <div class="card"><h3><span class="ico">🌱</span><span data-i="why4_t">Background energy</span></h3>
+      <p data-i="why4_b">NeuroMorph stresses the CPU cache and pipeline, not power draw: mining on 2–4 threads barely heats the machine and lives on idle cycles. A coin of background computation, not megawatt halls.</p></div>
+    <div class="card"><h3><span class="ico">📡</span><span data-i="why5_t">Lightweight node</span></h3>
+      <p data-i="why5_b">A full node is a single dependency-free binary (pure Go, stdlib). It runs on a $3 VPS, a Raspberry Pi or a home PC. The chain is human-readable JSONL: you can audit it by eye.</p></div>
+    <div class="card"><h3><span class="ico">🔑</span><span data-i="why6_t">Your keys only</span></h3>
+      <p data-i="why6_b">The web wallet signs transactions in your browser (ed25519); the private key never leaves your device. The same key works in the CLI wallet. No sign-up, no email, no KYC.</p></div>
   </div>
 </section>
 
 <section id="algo">
-  <h2>Как работает <em>NeuroMorph</em></h2>
+  <h2 data-i-html="algo_h2">How <em>NeuroMorph</em> works</h2>
   <div class="card">
-  <p style="color:var(--mut)">Для каждого варианта блока (nonce) алгоритм:</p>
+  <p style="color:var(--mut)" data-i="algo_intro">For each block candidate (nonce) the algorithm:</p>
   <ol style="margin:14px 0 14px 22px;color:var(--mut)">
-    <li>Разворачивает из хэша заголовка <b>случайную программу</b> (384–768 инструкций) для виртуальной машины: целочисленная математика, IEEE-754 float, аппаратные AES-раунды, ветвления, зависящие от данных.</li>
-    <li>Заполняет <b>2 МиБ scratchpad</b> — ровно под L2/L3-кэш процессора. Случайный доступ к нему делает дешёвую внешнюю память бесполезной.</li>
-    <li>Прогоняет 32–64 цикла исполнения, вмешивая регистры обратно в память — пропустить работу нельзя.</li>
-    <li>Сворачивает всё в SHA-256 и сравнивает с целью сложности.</li>
+    <li data-i-html="algo_1">Unfolds a <b>random program</b> (384–768 instructions) from the header hash for a virtual machine: integer math, IEEE-754 float, hardware AES rounds, data-dependent branches.</li>
+    <li data-i-html="algo_2">Fills a <b>2 MiB scratchpad</b> — sized for the CPU's L2/L3 cache. Random access to it makes cheap external memory useless.</li>
+    <li data-i-html="algo_3">Runs 32–64 execution loops, mixing registers back into memory — work cannot be skipped.</li>
+    <li data-i-html="algo_4">Folds everything into SHA-256 and compares against the difficulty target.</li>
   </ol>
-  <p style="color:var(--mut)">А на границе каждой эпохи (4096 блоков ≈ 3 дня) из хэша цепи рождаются <b>новые правила VM</b>. ASIC, выпущенный сегодня, через эпоху исполняет уже «не тот» алгоритм. Единственное устройство, которому всё равно, — универсальный процессор.</p>
+  <p style="color:var(--mut)" data-i-html="algo_outro">And at every epoch boundary (4096 blocks ≈ 3 days) <b>new VM rules</b> are born from the chain hash. An ASIC shipped today executes a "different" algorithm one epoch later. The only device that doesn't care is a general-purpose processor.</p>
   </div>
-  <div class="warn">⚗️ Честно о рисках: NeuroMorph — новый алгоритм, он не проходил многолетний внешний аудит. Cerebra — эксперимент, запущенный в один день, без фонда и гарантий. Участвуйте из интереса к технологии, а не ради «иксов».</div>
+  <div class="warn" data-i-html="algo_warn">⚗️ Honest about the risks: NeuroMorph is a new algorithm with no years of external audit. Cereblix is an experiment launched in a single day, with no fund and no guarantees. Take part out of interest in the technology, not for "moonshots".</div>
 </section>
 
 <section id="mine">
-  <h2>Начать <em>майнить</em></h2>
+  <h2 data-i-html="mine_h2">Start <em>mining</em></h2>
   <div class="steps">
-    <div class="step"><div><b>Создайте кошелёк</b><br><span style="color:var(--mut)">Откройте <a href="wallet/">веб-кошелёк</a>, нажмите «Создать», сохраните приватный ключ и скопируйте адрес <code>crb1…</code></span></div></div>
-    <div class="step"><div><b>Скачайте майнер</b><br><span style="color:var(--mut)">
-      Свежие сборки — на <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>:
-      <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebra-miner-windows-amd64.exe">Windows x64</a> ·
-      <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebra-miner-linux-amd64">Linux x64</a>
-      &nbsp;(Intel и AMD; код открыт — <a href="https://github.com/Cerebra-CBR/cerebra" target="_blank" rel="noopener">github.com/Cerebra-CBR/cerebra</a>)</span></div></div>
-    <div class="step"><div><b>Запустите</b>
-      <pre>cerebra-miner-windows-amd64.exe -addr crb1ВАШ_АДРЕС</pre>
-      <span style="color:var(--mut)">По умолчанию используются все ядра; ограничить: <code>-threads 4</code>. Майнер сам подключится к публичной ноде. Нашли блок — 50 CRB упали на адрес. Баланс виден в кошельке через ~минуту.</span></div></div>
-    <div class="step"><div><b>(Необязательно) Поднимите свою ноду</b>
-      <pre>cerebrad -datadir ./data
-cerebra-miner -node http://127.0.0.1:18751/api -addr crb1ВАШ_АДРЕС</pre>
-      <span style="color:var(--mut)">Своя нода = свой голос в сети и независимая проверка цепи. Скачать: <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebrad-linux-amd64">Linux</a> · <a href="https://github.com/Cerebra-CBR/cerebra/releases/latest/download/cerebrad-windows-amd64.exe">Windows</a> · или собрать из <a href="https://github.com/Cerebra-CBR/cerebra" target="_blank" rel="noopener">исходников</a></span></div></div>
+    <div class="step"><div><b data-i="mine_s1_t">Create a wallet</b><br><span style="color:var(--mut)" data-i-html="mine_s1_b">Open the <a href="wallet/">web wallet</a>, click "Create", save your private key and copy your <code>crb1…</code> address.</span></div></div>
+    <div class="step"><div><b data-i="mine_s2_t">Download the miner</b><br><span style="color:var(--mut)" data-i-html="mine_s2_b">Latest builds on <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>:
+      <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-windows-amd64.exe">Windows x64</a> ·
+      <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-linux-amd64">Linux x64</a>
+      &nbsp;(Intel and AMD; source is open — <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">github.com/Cerebra-CBR/cereblix</a>)</span></div></div>
+    <div class="step"><div><b data-i="mine_s3_t">Run it</b>
+      <pre>cereblix-miner-windows-amd64.exe -addr crb1YOUR_ADDRESS</pre>
+      <span style="color:var(--mut)" data-i-html="mine_s3_b">All cores are used by default; limit them with <code>-threads 4</code>. The miner connects to the public node by itself. Find a block — 50 CRB land on your address. The balance shows in the wallet within ~a minute.</span></div></div>
+    <div class="step"><div><b data-i="mine_s4_t">(Optional) Run your own node</b>
+      <pre>cereblixd -datadir ./data
+cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
+      <span style="color:var(--mut)" data-i-html="mine_s4_b">Your own node = your own vote in the network and independent chain validation. Download: <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblixd-linux-amd64">Linux</a> · <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblixd-windows-amd64.exe">Windows</a> · or build from <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">source</a>.</span></div></div>
   </div>
 </section>
 
 <section id="spec">
-  <h2>Параметры <em>сети</em></h2>
+  <h2 data-i-html="spec_h2">Network <em>parameters</em></h2>
   <div class="card"><table>
-    <tr><th>Тикер</th><td>CRB (1 CRB = 10⁸ синапсов)</td></tr>
-    <tr><th>Алгоритм</th><td>NeuroMorph v1 — самомутирующая PoW-VM, CPU-only</td></tr>
-    <tr><th>Время блока</th><td>60 секунд, ретаргет каждые 20 блоков</td></tr>
-    <tr><th>Награда</th><td>50 CRB, халвинг каждые 1 051 200 блоков (~2 года)</td></tr>
-    <tr><th>Максимум эмиссии</th><td>~105 120 000 CRB</td></tr>
-    <tr><th>Эпоха мутации VM</th><td>4096 блоков (~2.8 дня)</td></tr>
-    <tr><th>Премайн</th><td><b>0</b> — генезис пуст</td></tr>
-    <tr><th>Подписи / адреса</th><td>ed25519 · crb1 + SHA-256(pubkey)</td></tr>
-    <tr><th>Seed-нода</th><td><code>http://188.34.181.191:18750</code></td></tr>
-    <tr><th>API эксплорера</th><td><code>http://188.34.181.191/cerebra/api/status</code></td></tr>
+    <tr><th data-i="spec_ticker">Ticker</th><td>CRB (1 CRB = 10⁸ synapses)</td></tr>
+    <tr><th data-i="spec_algo">Algorithm</th><td data-i="spec_algo_v">NeuroMorph v1 — self-mutating PoW VM, CPU-only</td></tr>
+    <tr><th data-i="spec_time">Block time</th><td data-i="spec_time_v">60 seconds, retarget every 20 blocks</td></tr>
+    <tr><th data-i="spec_reward">Reward</th><td data-i="spec_reward_v">50 CRB, halving every 1,051,200 blocks (~2 years)</td></tr>
+    <tr><th data-i="spec_max">Max supply</th><td>~105,120,000 CRB</td></tr>
+    <tr><th data-i="spec_epoch">VM mutation epoch</th><td data-i="spec_epoch_v">4096 blocks (~2.8 days)</td></tr>
+    <tr><th data-i="spec_premine">Premine</th><td data-i="spec_premine_v"><b>0</b> — empty genesis</td></tr>
+    <tr><th data-i="spec_sig">Signatures / addresses</th><td>ed25519 · crb1 + SHA-256(pubkey)</td></tr>
+    <tr><th data-i="spec_seed">Seed node</th><td><code>http://188.34.181.191:18750</code></td></tr>
+    <tr><th data-i="spec_api">Explorer API</th><td><code>http://188.34.181.191/cereblix/api/status</code></td></tr>
   </table></div>
-  <h2 style="margin-top:36px">Последние <em>блоки</em></h2>
-  <div class="card"><table id="blocks"><thead><tr><th>#</th><th>Время</th><th>Хэш</th><th>Tx</th><th>Майнер</th></tr></thead><tbody></tbody></table></div>
+  <h2 style="margin-top:36px" data-i-html="spec_latest">Latest <em>blocks</em></h2>
+  <div class="card"><table id="blocks"><thead><tr><th>#</th><th data-i="bl_time">Time</th><th data-i="bl_hash">Hash</th><th>Tx</th><th data-i="bl_miner">Miner</th></tr></thead><tbody></tbody></table></div>
 </section>
 
 <section id="faq" class="faq">
   <h2><em>FAQ</em></h2>
-  <details><summary>Почему «ASIC-устойчивость навсегда» — это правда, а не маркетинг?</summary>
-    <p>Классические «ASIC-устойчивые» алгоритмы (Ethash, Equihash) были статичны — и под них в итоге выпустили чипы. NeuroMorph статичным не бывает: правила исполнения перерождаются каждую эпоху из хэша цепи, который невозможно предсказать. Любое фиксированное железо устаревает через ~3 дня. Устройство, которое умеет исполнять произвольные будущие программы с ветвлениями, float и AES — это и есть CPU. Поэтому «ASIC для Cerebra» — оксюморон: его кремний обязан превратиться в процессор.</p></details>
-  <details><summary>А GPU и ботнеты?</summary>
-    <p>GPU: случайные ветвления каждые несколько инструкций приводят к дивергенции warp'ов — видеокарта работает на скорости одного-двух своих скалярных ядер, т.е. медленнее ноутбука. Ботнеты — проблема всех CPU-монет; наш ответ экономический: низкая капитализация на старте делает их нерентабельными, а эгалитарный майнинг распределяет монету шире, чем любой «честный» GPU-запуск.</p></details>
-  <details><summary>Где торгуется CRB? Сколько он стоит?</summary>
-    <p>Нигде и нисколько. Монета запущена сегодня без бирж, маркетмейкеров и цены. Если у неё появится стоимость — её создадут люди, а не презейл.</p></details>
-  <details><summary>Это форк Monero/RandomX?</summary>
-    <p>Нет. Кодовая база написана с нуля на Go (ядро + нода + майнер ~2500 строк, ноль внешних зависимостей). NeuroMorph концептуально развивает идею случайных программ RandomX, но добавляет главное: эпохальную мутацию самой семантики VM. RandomX зафиксирован навечно — NeuroMorph не фиксирован в принципе.</p></details>
-  <details><summary>Как поддержать сеть?</summary>
-    <p>Майните (даже 1–2 потока — вклад в безопасность), держите ноду, зеркальте исходники. Код открыт: <a href="downloads/cerebra-src.tar.gz">скачать архив исходников</a>.</p></details>
+  <details><summary data-i="faq1_q">Why is "ASIC-resistant forever" true, not marketing?</summary>
+    <p data-i="faq1_a">Classic "ASIC-resistant" algorithms (Ethash, Equihash) were static — and chips were eventually built for them. NeuroMorph is never static: the execution rules are reborn each epoch from a chain hash that cannot be predicted. Any fixed hardware is obsolete within ~3 days. A device that can execute arbitrary future programs with branches, float and AES — that is a CPU. So an "ASIC for Cereblix" is an oxymoron: its silicon has to become a processor.</p></details>
+  <details><summary data-i="faq2_q">What about GPUs and botnets?</summary>
+    <p data-i="faq2_a">GPUs: random branches every few instructions cause warp divergence — the card runs at the speed of one or two of its scalar cores, i.e. slower than a laptop. Botnets are a problem for all CPU coins; our answer is economic: a low cap at launch makes them unprofitable, and egalitarian mining distributes the coin wider than any "fair" GPU launch.</p></details>
+  <details><summary data-i="faq3_q">Where does CRB trade? What's the price?</summary>
+    <p data-i="faq3_a">Nowhere and nothing. The coin launched today with no exchanges, market makers or price. If it ever gains value, people will create it — not a presale.</p></details>
+  <details><summary data-i="faq4_q">Is this a fork of Monero/RandomX?</summary>
+    <p data-i="faq4_a">No. The codebase is written from scratch in Go (core + node + miner ~2500 lines, zero external dependencies). NeuroMorph conceptually extends RandomX's random-program idea, but adds the key part: epoch mutation of the VM semantics itself. RandomX is frozen forever — NeuroMorph is not frozen by principle.</p></details>
+  <details><summary data-i="faq5_q">How can I support the network?</summary>
+    <p data-i-html="faq5_a">Mine (even 1–2 threads helps security), run a node, mirror the source. The code is open: <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">github.com/Cerebra-CBR/cereblix</a>.</p></details>
 </section>
 
 <footer>
-  Cerebra · запущена 11 июня 2026 · без премайна, без фонда, без обещаний ·
-  <a href="wallet/" style="color:var(--acc)">кошелёк</a> ·
-  <a href="downloads/cerebra-src.tar.gz" style="color:var(--acc)">исходники</a><br>
-  Это экспериментальное ПО. Не вкладывайте то, что боитесь потерять. DYOR.
+  <span data-i-html="footer1">Cereblix · launched 11 June 2026 · no premine, no fund, no promises ·</span>
+  <a href="wallet/" style="color:var(--acc)" data-i="nav_wallet">wallet</a> ·
+  <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener" style="color:var(--acc)">GitHub</a><br>
+  <span data-i="footer2">This is experimental software. Don't invest what you're afraid to lose. DYOR.</span>
 </footer>
 </div>
 
 <script>
+const I18N = {
+  en: {},  // English is the source text in the HTML; en = identity
+  ru: {
+    nav_why:"Почему CRB", nav_mine:"Майнинг", nav_explorer:"Обозреватель", nav_wallet:"Открыть кошелёк",
+    hero_h1:'Монета, которую майнит <em>процессор</em>.<br>Не видеокарта. Не ASIC. <em>Никогда.</em>',
+    hero_p:'Cereblix (CRB) — криптовалюта на новом PoW-алгоритме <b>NeuroMorph</b>: виртуальная машина, которая <b>перепрограммирует сама себя каждые 4096 блоков</b>. Чип, способный её майнить, обязан быть процессором — по определению.',
+    hero_cta1:"Начать майнить за 2 минуты", hero_cta2:"Веб-кошелёк",
+    st_height:"высота блока", st_hashrate:"хэшрейт сети", st_supply:"CRB в обращении", st_reward:"награда за блок", st_epoch:"эпоха NeuroMorph", st_age:"последний блок",
+    why_h2:'Почему <em>Cereblix</em> — это другое',
+    why1_t:"Самомутирующий алгоритм", why1_b:"Каждые 4096 блоков NeuroMorph пересобирает собственную семантику из энтропии цепи: меняются веса инструкций, длина программ, константы, AES-ключи. Спроектировать «замороженное» железо под алгоритм, который ещё не существует, невозможно. Это и есть пожизненная защита от ASIC — не обещание, а свойство конструкции.",
+    why2_t:"1 CPU = 1 голос", why2_b:"Случайные программы со случайными ветвлениями — смерть для GPU: тысячи ядер видеокарты расходятся на первом же ветвлении и простаивают. Майнит любой ноутбук на Intel или AMD. Никаких ферм — сеть принадлежит людям, а не складам с железом.",
+    why3_t:"Честный запуск 2026", why3_b:"Ноль премайна. Ноль аллокаций «команде». Ноль VC. Генезис-блок пуст, монеты появляются только из майнинга. Первый блок намайнен в день публикации этого сайта — вы опоздали ровно на ноль.",
+    why4_t:"Фоновая энергия", why4_b:"NeuroMorph упирается в кэш и конвейер CPU, а не в потребление: майнинг на 2–4 потоках почти не греет машину и живёт на «холостых» циклах. Это монета фоновых вычислений, а не мегаваттных ангаров.",
+    why5_t:"Лёгкая нода", why5_b:"Полная нода — один бинарник без зависимостей (чистый Go, stdlib). Запускается на VPS за $3, Raspberry Pi или домашнем ПК. Блокчейн — человекочитаемый JSONL: аудит цепи возможен глазами.",
+    why6_t:"Ключи только у вас", why6_b:"Веб-кошелёк подписывает транзакции в браузере (ed25519), приватный ключ не покидает устройство. Тот же ключ работает в CLI-кошельке. Никакой регистрации, почты, KYC.",
+    algo_h2:'Как работает <em>NeuroMorph</em>',
+    algo_intro:"Для каждого варианта блока (nonce) алгоритм:",
+    algo_1:'Разворачивает из хэша заголовка <b>случайную программу</b> (384–768 инструкций) для виртуальной машины: целочисленная математика, IEEE-754 float, аппаратные AES-раунды, ветвления, зависящие от данных.',
+    algo_2:'Заполняет <b>2 МиБ scratchpad</b> — ровно под L2/L3-кэш процессора. Случайный доступ к нему делает дешёвую внешнюю память бесполезной.',
+    algo_3:'Прогоняет 32–64 цикла исполнения, вмешивая регистры обратно в память — пропустить работу нельзя.',
+    algo_4:'Сворачивает всё в SHA-256 и сравнивает с целью сложности.',
+    algo_outro:'А на границе каждой эпохи (4096 блоков ≈ 3 дня) из хэша цепи рождаются <b>новые правила VM</b>. ASIC, выпущенный сегодня, через эпоху исполняет уже «не тот» алгоритм. Единственное устройство, которому всё равно, — универсальный процессор.',
+    algo_warn:'⚗️ Честно о рисках: NeuroMorph — новый алгоритм, он не проходил многолетний внешний аудит. Cereblix — эксперимент, запущенный в один день, без фонда и гарантий. Участвуйте из интереса к технологии, а не ради «иксов».',
+    mine_h2:'Начать <em>майнить</em>',
+    mine_s1_t:"Создайте кошелёк", mine_s1_b:'Откройте <a href="wallet/">веб-кошелёк</a>, нажмите «Создать», сохраните приватный ключ и скопируйте адрес <code>crb1…</code>',
+    mine_s2_t:"Скачайте майнер", mine_s2_b:'Свежие сборки — на <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>: <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-windows-amd64.exe">Windows x64</a> · <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-linux-amd64">Linux x64</a> &nbsp;(Intel и AMD; код открыт — <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">github.com/Cerebra-CBR/cereblix</a>)',
+    mine_s3_t:"Запустите", mine_s3_b:'По умолчанию используются все ядра; ограничить: <code>-threads 4</code>. Майнер сам подключится к публичной ноде. Нашли блок — 50 CRB упали на адрес. Баланс виден в кошельке через ~минуту.',
+    mine_s4_t:"(Необязательно) Поднимите свою ноду", mine_s4_b:'Своя нода = свой голос в сети и независимая проверка цепи. Скачать: <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblixd-linux-amd64">Linux</a> · <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblixd-windows-amd64.exe">Windows</a> · или собрать из <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">исходников</a>',
+    spec_h2:'Параметры <em>сети</em>',
+    spec_ticker:"Тикер", spec_algo:"Алгоритм", spec_algo_v:"NeuroMorph v1 — самомутирующая PoW-VM, CPU-only",
+    spec_time:"Время блока", spec_time_v:"60 секунд, ретаргет каждые 20 блоков",
+    spec_reward:"Награда", spec_reward_v:"50 CRB, халвинг каждые 1 051 200 блоков (~2 года)",
+    spec_max:"Максимум эмиссии", spec_epoch:"Эпоха мутации VM", spec_epoch_v:"4096 блоков (~2.8 дня)",
+    spec_premine:"Премайн", spec_premine_v:'<b>0</b> — генезис пуст',
+    spec_sig:"Подписи / адреса", spec_seed:"Seed-нода", spec_api:"API эксплорера",
+    spec_latest:'Последние <em>блоки</em>', bl_time:"Время", bl_hash:"Хэш", bl_miner:"Майнер",
+    faq1_q:"Почему «ASIC-устойчивость навсегда» — правда, а не маркетинг?",
+    faq1_a:"Классические «ASIC-устойчивые» алгоритмы (Ethash, Equihash) были статичны — и под них в итоге выпустили чипы. NeuroMorph статичным не бывает: правила исполнения перерождаются каждую эпоху из хэша цепи, который невозможно предсказать. Любое фиксированное железо устаревает через ~3 дня. Устройство, которое умеет исполнять произвольные будущие программы с ветвлениями, float и AES — это и есть CPU. Поэтому «ASIC для Cereblix» — оксюморон: его кремний обязан превратиться в процессор.",
+    faq2_q:"А GPU и ботнеты?",
+    faq2_a:"GPU: случайные ветвления каждые несколько инструкций приводят к дивергенции warp'ов — видеокарта работает на скорости одного-двух своих скалярных ядер, т.е. медленнее ноутбука. Ботнеты — проблема всех CPU-монет; наш ответ экономический: низкая капитализация на старте делает их нерентабельными, а эгалитарный майнинг распределяет монету шире, чем любой «честный» GPU-запуск.",
+    faq3_q:"Где торгуется CRB? Сколько он стоит?",
+    faq3_a:"Нигде и нисколько. Монета запущена сегодня без бирж, маркетмейкеров и цены. Если у неё появится стоимость — её создадут люди, а не презейл.",
+    faq4_q:"Это форк Monero/RandomX?",
+    faq4_a:"Нет. Кодовая база написана с нуля на Go (ядро + нода + майнер ~2500 строк, ноль внешних зависимостей). NeuroMorph концептуально развивает идею случайных программ RandomX, но добавляет главное: эпохальную мутацию самой семантики VM. RandomX зафиксирован навечно — NeuroMorph не фиксирован в принципе.",
+    faq5_q:"Как поддержать сеть?",
+    faq5_a:'Майните (даже 1–2 потока — вклад в безопасность), держите ноду, зеркальте исходники. Код открыт: <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">github.com/Cerebra-CBR/cereblix</a>.',
+    footer1:"Cereblix · запущена 11 июня 2026 · без премайна, без фонда, без обещаний ·",
+    footer2:"Это экспериментальное ПО. Не вкладывайте то, что боитесь потерять. DYOR.",
+    name_cere_t:"cereb — от cerebrum (мозг) 🧠",
+    name_cere_b:"Думает твой процессор: NeuroMorph гоняет на CPU мозгоподобные случайные программы. Нейроны, синапсы, «мозговые» вычисления — вся суть монеты.",
+    name_lix_t:"lix — от helix (спираль ДНК) 🧬",
+    name_lix_b:"ДНК — это генетика и эволюция. Наш алгоритм каждые 4096 блоков переписывает собственную «ДНК» — правила VM, как генетическая мутация. Суффикс «-lix» зашивает самомутацию.",
+    name_tag:'<b>Эволюционирующий мозг</b> — самомутирующий, мозгоподобный proof-of-work, живущий на твоём CPU. А тикер читается прямо из имени: <b>C</b>e<b>R</b>e<b>B</b>lix → CRB.',
+  }
+};
+
+function detectLang(){
+  const saved = localStorage.getItem('lang');
+  if (saved === 'ru' || saved === 'en') return saved;
+  return (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
+}
+// Snapshot the original English HTML so switching back to EN restores it.
+const EN_CACHE = {};
+function applyLang(lang){
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i],[data-i-html]').forEach(el=>{
+    const key = el.getAttribute('data-i') || el.getAttribute('data-i-html');
+    const html = el.hasAttribute('data-i-html');
+    if (!(key in EN_CACHE)) EN_CACHE[key] = el.innerHTML; // first pass = English source
+    let val = lang === 'en' ? EN_CACHE[key] : (I18N.ru[key] ?? EN_CACHE[key]);
+    el.innerHTML = val;
+  });
+  document.querySelectorAll('.langsw button').forEach(b=>b.classList.toggle('on', b.dataset.lang===lang));
+}
+function setLang(l){ localStorage.setItem('lang', l); applyLang(l); }
+
 const API = 'api';
-const fmt = v => (v/1e8).toLocaleString('ru-RU',{maximumFractionDigits:2});
+const fmt = v => (v/1e8).toLocaleString(document.documentElement.lang==='ru'?'ru-RU':'en-US',{maximumFractionDigits:2});
 let lastBlockAge = 0, lastFetch = 0;
 async function load(){
   try{
     const s = await (await fetch(API+'/status?_='+Date.now(), {cache:'no-store'})).json();
-    document.getElementById('s-height').textContent = s.height.toLocaleString('ru-RU');
-    document.getElementById('s-hashrate').textContent = Math.round(s.hashrate).toLocaleString('ru-RU')+' H/s';
+    const loc = document.documentElement.lang==='ru'?'ru-RU':'en-US';
+    document.getElementById('s-height').textContent = s.height.toLocaleString(loc);
+    document.getElementById('s-hashrate').textContent = Math.round(s.hashrate).toLocaleString(loc)+' H/s';
     document.getElementById('s-supply').textContent = fmt(s.supply);
     document.getElementById('s-reward').textContent = fmt(s.reward);
     document.getElementById('s-epoch').textContent = s.epoch;
     lastBlockAge = s.block_age || 0; lastFetch = Date.now();
     const bs = await (await fetch(API+'/blocks?last=12&_='+Date.now(), {cache:'no-store'})).json();
     document.querySelector('#blocks tbody').innerHTML = bs.map(b=>
-      `<tr><td>${b.height}</td><td>${new Date(b.time*1000).toLocaleTimeString('ru-RU')}</td>
+      `<tr><td>${b.height}</td><td>${new Date(b.time*1000).toLocaleTimeString(loc)}</td>
       <td style="font-family:monospace;font-size:12px">${b.hash.slice(0,20)}…</td>
       <td>${b.txs}</td><td style="font-family:monospace;font-size:12px">${b.miner.slice(0,14)}…</td></tr>`).join('');
   }catch(e){ console.error(e); }
 }
-// Tick the "last block" label every second so the page visibly stays live.
 function tick(){
   const el = document.getElementById('s-age');
   if(!el) return;
   const age = lastBlockAge + Math.floor((Date.now()-lastFetch)/1000);
-  el.textContent = age < 60 ? age + ' с' : Math.floor(age/60) + ' м ' + (age%60) + ' с';
+  const ru = document.documentElement.lang==='ru';
+  el.textContent = age < 60 ? age + (ru?' с':'s') : Math.floor(age/60) + (ru?' м ':'m ') + (age%60) + (ru?' с':'s');
 }
+// Build the DNA double helix: each base pair is a column whose two dots
+// animate in opposite sine phase; per-column delay creates the rotating helix.
+function buildDNA(el, count){
+  if(!el) return;
+  let html='';
+  for(let i=0;i<count;i++){
+    const d = (-i*0.13).toFixed(2)+'s';
+    html += `<span class="bp"><s style="animation-delay:${d}"></s><i class="a" style="animation-delay:${d}"></i><i class="b" style="animation-delay:${d}"></i></span>`;
+  }
+  el.innerHTML = html;
+}
+buildDNA(document.getElementById('dna'), 36);
+buildDNA(document.getElementById('dna2'), 26);
+applyLang(detectLang());
 load();
 setInterval(load, 10000);
 setInterval(tick, 1000);

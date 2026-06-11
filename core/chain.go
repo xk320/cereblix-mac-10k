@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	nm "cerebra/neuromorph"
+	nm "cereblix/neuromorph"
 )
 
 type Account struct {

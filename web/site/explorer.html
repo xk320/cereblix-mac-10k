@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cerebra Explorer — обозреватель блокчейна CRB</title>
+<title>Cereblix Explorer — CRB blockchain explorer</title>
 <style>
 :root{--bg:#0a0e17;--panel:#111827;--panel2:#1a2336;--acc:#22d3ee;--acc2:#a78bfa;--txt:#e5e7eb;--mut:#8b9bb4;--ok:#34d399;--err:#f87171}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -14,7 +14,10 @@ nav{display:flex;align-items:center;gap:16px;padding:16px 0;flex-wrap:wrap}
 nav b{font-size:18px}
 nav a{color:var(--mut);text-decoration:none;font-size:14.5px;cursor:pointer}
 nav a:hover,nav a.active{color:var(--acc)}
-nav .right{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap}
+nav .right{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.langsw{display:inline-flex;gap:2px;border:1px solid #2c3a55;border-radius:8px;overflow:hidden}
+.langsw button{background:var(--panel2);color:var(--mut);border:0;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:600}
+.langsw button.on{background:var(--acc);color:#06121f}
 a{color:var(--acc);text-decoration:none;cursor:pointer}
 a:hover{text-decoration:underline}
 .search{display:flex;gap:8px;margin:18px 0}
@@ -33,7 +36,7 @@ td,th{padding:8px 6px;border-bottom:1px solid #1f2b42;text-align:left;vertical-a
 th{color:var(--mut);font-weight:600}
 tr:last-child td{border-bottom:0}
 .mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
-.kv{display:grid;grid-template-columns:150px 1fr;gap:7px 14px;font-size:14px}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:7px 14px;font-size:14px}
 .kv div:nth-child(odd){color:var(--mut)}
 .kv .mono{word-break:break-all}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600}
@@ -56,19 +59,20 @@ tr:last-child td{border-bottom:0}
 <body>
 <div class="wrap">
 <nav>
-  <div class="logo" onclick="showHome()">₢</div><b>Cerebra</b>
+  <div class="logo" onclick="showHome()">₢</div><b>Cereblix</b>
   <div class="right">
-    <a href="./">О проекте</a>
-    <a onclick="showHome()" class="active">Обозреватель</a>
-    <a onclick="showRich()">Богатейшие</a>
-    <a onclick="showMempool()">Мемпул</a>
-    <a href="wallet/">Кошелёк</a>
+    <a href="./" data-t="about">About</a>
+    <a onclick="showHome()" class="active" data-t="explorer">Explorer</a>
+    <a onclick="showRich()" data-t="rich">Rich list</a>
+    <a onclick="showMempool()" data-t="mempool">Mempool</a>
+    <a href="wallet/" data-t="wallet">Wallet</a>
+    <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
   </div>
 </nav>
 
 <div class="search">
-  <input id="q" placeholder="Поиск: высота / хэш блока / txid / адрес crb1…" autofocus>
-  <button onclick="doSearch()">Найти</button>
+  <input id="q" autofocus>
+  <button onclick="doSearch()" data-t="find">Search</button>
 </div>
 
 <div class="stats" id="stats"></div>
@@ -76,11 +80,48 @@ tr:last-child td{border-bottom:0}
 </div>
 
 <script>
+const T = {
+  en:{about:"About",explorer:"Explorer",rich:"Rich list",mempool:"Mempool",wallet:"Wallet",find:"Search",
+    ph:"Search: height / block hash / txid / crb1 address…",
+    st_height:"height",st_hr:"H/s network",st_supply:"CRB supply",st_reward:"reward",st_epoch:"epoch",st_age:"last block",st_mp:"mempool",
+    node_down:"node unavailable",latest:"Latest blocks",auto10:"refresh every 10s",
+    c_time:"time",c_hash:"hash",c_tx:"tx",c_miner:"miner",c_reward:"reward",c_from:"from",c_to:"to",c_amount:"amount",c_fee:"fee",c_block:"block",c_type:"type",c_peer:"counterparty",c_txid:"txid",
+    block:"Block",conf:"conf.",prevblock:"prev block",depth:"depth",txn:"transactions",outsum:"total outputs",fees:"fees",target:"target",nonce:"nonce",txroot:"tx root",
+    txs:"Transactions",last:"latest",backblocks:"← back to latest blocks",backhome:"← back",
+    tx:"Transaction",status:"status",pending:"in mempool (0 conf.)",confirmedin:"confirmations in block",time:"time",coinbase:"coinbase (issuance)",
+    address:"Address",balance:"balance",received:"received",mined:"mined",sent:"sent",ntx:"transactions",nonce2:"nonce",txhist:"Transaction history",
+    notx:"no transactions",send:"send",recv:"receive",mining:"mining",page:"page",of:"of",newer:"← newer",older:"older →",
+    rich_t:"Richest addresses",share:"share",you:"you",mp_t:"Mempool (unconfirmed)",mp_empty:"mempool is empty — all transactions confirmed",
+    notfound:"Nothing found",copy:"copy"},
+  ru:{about:"О проекте",explorer:"Обозреватель",rich:"Богатейшие",mempool:"Мемпул",wallet:"Кошелёк",find:"Найти",
+    ph:"Поиск: высота / хэш блока / txid / адрес crb1…",
+    st_height:"высота",st_hr:"H/s сети",st_supply:"CRB эмиссия",st_reward:"награда",st_epoch:"эпоха",st_age:"посл. блок",st_mp:"мемпул",
+    node_down:"нода недоступна",latest:"Последние блоки",auto10:"обновление каждые 10 с",
+    c_time:"время",c_hash:"хэш",c_tx:"tx",c_miner:"майнер",c_reward:"награда",c_from:"от",c_to:"кому",c_amount:"сумма",c_fee:"комиссия",c_block:"блок",c_type:"тип",c_peer:"контрагент",c_txid:"txid",
+    block:"Блок",conf:"подтв.",prevblock:"пред. блок",depth:"глубина",txn:"транзакций",outsum:"сумма выходов",fees:"комиссии",target:"target",nonce:"nonce",txroot:"tx root",
+    txs:"Транзакции",last:"последний",backblocks:"← к последним блокам",backhome:"← назад",
+    tx:"Транзакция",status:"статус",pending:"в мемпуле (0 подтв.)",confirmedin:"подтверждений в блоке",time:"время",coinbase:"coinbase (эмиссия)",
+    address:"Адрес",balance:"баланс",received:"получено",mined:"намайнено",sent:"отправлено",ntx:"транзакций",nonce2:"nonce",txhist:"История транзакций",
+    notx:"нет транзакций",send:"отправка",recv:"получение",mining:"майнинг",page:"стр.",of:"из",newer:"← новее",older:"старее →",
+    rich_t:"Богатейшие адреса",share:"доля",you:"вы",mp_t:"Мемпул (неподтверждённые)",mp_empty:"мемпул пуст — все транзакции подтверждены",
+    notfound:"Ничего не найдено",copy:"копировать"}
+};
+let LANG = (function(){ const s=localStorage.getItem('lang'); return (s==='ru'||s==='en')?s:((navigator.language||'en').toLowerCase().startsWith('ru')?'ru':'en'); })();
+const t = k => (T[LANG][k] ?? T.en[k] ?? k);
+function setLang(l){ LANG=l; localStorage.setItem('lang',l); applyChrome(); route(); }
+function applyChrome(){
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el=>el.textContent=t(el.getAttribute('data-t')));
+  document.getElementById('q').placeholder = t('ph');
+  document.querySelectorAll('.langsw button').forEach(b=>b.classList.toggle('on', b.dataset.lang===LANG));
+}
+
 const API = 'api';
 const UNIT = 1e8;
 const $ = id => document.getElementById(id);
-const fmt = v => (v/UNIT).toLocaleString('ru-RU',{maximumFractionDigits:8}) + ' CRB';
-const tstr = t => new Date(t*1000).toLocaleString('ru-RU');
+const loc = () => LANG==='ru'?'ru-RU':'en-US';
+const fmt = v => (v/UNIT).toLocaleString(loc(),{maximumFractionDigits:8}) + ' CRB';
+const tstr = ts => new Date(ts*1000).toLocaleString(loc());
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const short = (s,n=16) => s && s.length > n+4 ? s.slice(0,n)+'…' : s;
 let netHeight = 0;
@@ -91,25 +132,24 @@ async function api(path){
   if (j && j.error) throw new Error(j.error);
   return j;
 }
-// onclick uses double-quoted attribute; string args use single quotes (safe: hex/crb only).
 const aBlock = (h,txt) => `<a onclick="showBlock(${h})">${esc(txt)}</a>`;
 const aTx = (id,txt) => `<a onclick="showTx('${id}')">${esc(txt)}</a>`;
 const aAddr = (ad,txt) => `<a onclick="showAddr('${ad}')">${esc(txt)}</a>`;
-const copy = s => `<span class="copy" onclick="navigator.clipboard.writeText('${s}')">копировать</span>`;
+const copy = s => `<span class="copy" onclick="navigator.clipboard.writeText('${s}')">${t('copy')}</span>`;
 
 async function loadStats(){
   try{
     const s = await api('/status');
     netHeight = s.height;
     $('stats').innerHTML = `
-      <div class="stat"><b>${s.height.toLocaleString('ru-RU')}</b><span>высота</span></div>
-      <div class="stat"><b>${Math.round(s.hashrate).toLocaleString('ru-RU')}</b><span>H/s сети</span></div>
-      <div class="stat"><b>${(s.supply/UNIT).toLocaleString('ru-RU',{maximumFractionDigits:0})}</b><span>CRB эмиссия</span></div>
-      <div class="stat"><b>${(s.reward/UNIT)}</b><span>награда</span></div>
-      <div class="stat"><b>${s.epoch}</b><span>эпоха</span></div>
-      <div class="stat"><b>${s.block_age}с</b><span>посл. блок</span></div>
-      <div class="stat"><b>${s.mempool}</b><span>мемпул</span></div>`;
-  }catch(e){ $('stats').innerHTML = `<div class="err">нода недоступна: ${esc(e.message)}</div>`; }
+      <div class="stat"><b>${s.height.toLocaleString(loc())}</b><span>${t('st_height')}</span></div>
+      <div class="stat"><b>${Math.round(s.hashrate).toLocaleString(loc())}</b><span>${t('st_hr')}</span></div>
+      <div class="stat"><b>${(s.supply/UNIT).toLocaleString(loc(),{maximumFractionDigits:0})}</b><span>${t('st_supply')}</span></div>
+      <div class="stat"><b>${(s.reward/UNIT)}</b><span>${t('st_reward')}</span></div>
+      <div class="stat"><b>${s.epoch}</b><span>${t('st_epoch')}</span></div>
+      <div class="stat"><b>${s.block_age}${LANG==='ru'?'с':'s'}</b><span>${t('st_age')}</span></div>
+      <div class="stat"><b>${s.mempool}</b><span>${t('st_mp')}</span></div>`;
+  }catch(e){ $('stats').innerHTML = `<div class="err">${t('node_down')}: ${esc(e.message)}</div>`; }
 }
 
 async function showHome(){
@@ -123,8 +163,8 @@ async function showHome(){
       <td>${b.txs}</td>
       <td class="mono">${aAddr(b.miner,short(b.miner,14))}</td>
       <td>${fmt(b.reward)}</td></tr>`).join('');
-    $('view').innerHTML = `<div class="card"><h2>Последние блоки<span class="tag">обновление каждые 10 с</span></h2>
-      <table><tr><th>#</th><th>время</th><th>хэш</th><th>tx</th><th>майнер</th><th>награда</th></tr>${rows}</table></div>`;
+    $('view').innerHTML = `<div class="card"><h2>${t('latest')}<span class="tag">${t('auto10')}</span></h2>
+      <table><tr><th>#</th><th>${t('c_time')}</th><th>${t('c_hash')}</th><th>${t('c_tx')}</th><th>${t('c_miner')}</th><th>${t('c_reward')}</th></tr>${rows}</table></div>`;
   }catch(e){ $('view').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
 
@@ -135,61 +175,61 @@ async function showBlock(h){
     const b = await api('/block?h='+h);
     const hash = blockHash(b);
     const conf = netHeight - b.height + 1;
-    const totalOut = b.txs.reduce((s,t)=>s+t.amount,0);
-    const fees = b.txs.filter(t=>t.from_pub).reduce((s,t)=>s+t.fee,0);
-    const txs = b.txs.map((t,i)=>{
-      const cb = !t.from_pub;
-      const from = cb ? 'coinbase' : addrOf(t.from_pub);
+    const totalOut = b.txs.reduce((s,x)=>s+x.amount,0);
+    const fees = b.txs.filter(x=>x.from_pub).reduce((s,x)=>s+x.fee,0);
+    const txs = b.txs.map((x,i)=>{
+      const cb = !x.from_pub;
+      const from = cb ? 'coinbase' : addrOf(x.from_pub);
       return `<tr><td>${i}</td>
-        <td class="mono">${aTx(txId(t),short(txId(t),14))}</td>
+        <td class="mono">${aTx(txId(x),short(txId(x),14))}</td>
         <td>${cb?'<span class="pill cb">coinbase</span>':aAddr(from,short(from,14))}</td>
-        <td class="mono">${aAddr(t.to,short(t.to,14))}</td>
-        <td>${fmt(t.amount)}</td><td>${fmt(t.fee)}</td></tr>`;
+        <td class="mono">${aAddr(x.to,short(x.to,14))}</td>
+        <td>${fmt(x.amount)}</td><td>${fmt(x.fee)}</td></tr>`;
     }).join('');
-    $('view').innerHTML = `<a class="back" onclick="showHome()">← к последним блокам</a>
-      <div class="card"><h2>Блок #${b.height}<span class="tag">${conf} подтв.</span></h2>
+    $('view').innerHTML = `<a class="back" onclick="showHome()">${t('backblocks')}</a>
+      <div class="card"><h2>${t('block')} #${b.height}<span class="tag">${conf} ${t('conf')}</span></h2>
       <div class="kv">
-        <div>хэш</div><div class="mono">${esc(hash)}${copy(hash)}</div>
-        <div>пред. блок</div><div class="mono">${b.height>0?aBlock(b.height-1,b.prev):esc(b.prev)}</div>
-        <div>время</div><div>${tstr(b.time)} <span class="muted">(${netHeight-b.height>=0?'глубина '+(netHeight-b.height):''})</span></div>
-        <div>транзакций</div><div>${b.txs.length}</div>
-        <div>сумма выходов</div><div>${fmt(totalOut)}</div>
-        <div>комиссии</div><div>${fmt(fees)}</div>
-        <div>target</div><div class="mono">${esc(b.target)}</div>
-        <div>nonce</div><div>${b.nonce}</div>
-        <div>tx root</div><div class="mono">${esc(b.txroot)}</div>
+        <div>${t('c_hash')}</div><div class="mono">${esc(hash)}${copy(hash)}</div>
+        <div>${t('prevblock')}</div><div class="mono">${b.height>0?aBlock(b.height-1,b.prev):esc(b.prev)}</div>
+        <div>${t('time')}</div><div>${tstr(b.time)} <span class="muted">(${t('depth')} ${netHeight-b.height})</span></div>
+        <div>${t('txn')}</div><div>${b.txs.length}</div>
+        <div>${t('outsum')}</div><div>${fmt(totalOut)}</div>
+        <div>${t('fees')}</div><div>${fmt(fees)}</div>
+        <div>${t('target')}</div><div class="mono">${esc(b.target)}</div>
+        <div>${t('nonce')}</div><div>${b.nonce}</div>
+        <div>${t('txroot')}</div><div class="mono">${esc(b.txroot)}</div>
       </div></div>
-      <div class="card"><h2>Транзакции (${b.txs.length})</h2><table>
-        <tr><th>#</th><th>txid</th><th>от</th><th>кому</th><th>сумма</th><th>комиссия</th></tr>${txs}</table></div>
+      <div class="card"><h2>${t('txs')} (${b.txs.length})</h2><table>
+        <tr><th>#</th><th>${t('c_txid')}</th><th>${t('c_from')}</th><th>${t('c_to')}</th><th>${t('c_amount')}</th><th>${t('c_fee')}</th></tr>${txs}</table></div>
       <div class="pager">
         <button onclick="showBlock(${b.height-1})" ${b.height===0?'disabled':''}>← #${b.height-1}</button>
         <button onclick="showBlock(${b.height+1})" ${b.height>=netHeight?'disabled':''}>#${b.height+1} →</button>
-        <button onclick="showBlock(${netHeight})">последний</button>
+        <button onclick="showBlock(${netHeight})">${t('last')}</button>
       </div>`;
-  }catch(e){ $('view').innerHTML = `<a class="back" onclick="showHome()">← назад</a><div class="err">${esc(e.message)}</div>`; }
+  }catch(e){ $('view').innerHTML = `<a class="back" onclick="showHome()">${t('backhome')}</a><div class="err">${esc(e.message)}</div>`; }
 }
 
 async function showTx(id){
   location.hash = 'tx/'+id;
   try{
-    const t = await api('/tx?id='+id);
-    const conf = t.pending ? 0 : (netHeight - t.height + 1);
-    const status = t.pending
-      ? '<span class="pill wait">в мемпуле (0 подтв.)</span>'
-      : `<span class="pill ok">${conf} подтверждений</span> в блоке ${aBlock(t.height,'#'+t.height)}`;
-    $('view').innerHTML = `<a class="back" onclick="showHome()">← к блокам</a>
-      <div class="card"><h2>Транзакция</h2><div class="kv">
-        <div>txid</div><div class="mono">${esc(t.txid)}${copy(t.txid)}</div>
-        <div>статус</div><div>${status}</div>
-        ${t.pending?'':`<div>время</div><div>${tstr(t.time)}</div>
-        <div>блок</div><div class="mono">${aBlock(t.height,t.block_hash)}</div>`}
-        <div>от</div><div class="mono">${t.coinbase?'<span class="pill cb">coinbase (эмиссия)</span>':aAddr(t.from,t.from)}</div>
-        <div>кому</div><div class="mono">${aAddr(t.to,t.to)}</div>
-        <div>сумма</div><div class="big">${fmt(t.amount)}</div>
-        <div>комиссия</div><div>${fmt(t.fee)}</div>
-        <div>nonce</div><div>${t.nonce}</div>
+    const x = await api('/tx?id='+id);
+    const conf = x.pending ? 0 : (netHeight - x.height + 1);
+    const status = x.pending
+      ? `<span class="pill wait">${t('pending')}</span>`
+      : `<span class="pill ok">${conf} ${t('confirmedin')}</span> ${aBlock(x.height,'#'+x.height)}`;
+    $('view').innerHTML = `<a class="back" onclick="showHome()">${t('backblocks')}</a>
+      <div class="card"><h2>${t('tx')}</h2><div class="kv">
+        <div>${t('c_txid')}</div><div class="mono">${esc(x.txid)}${copy(x.txid)}</div>
+        <div>${t('status')}</div><div>${status}</div>
+        ${x.pending?'':`<div>${t('time')}</div><div>${tstr(x.time)}</div>
+        <div>${t('c_block')}</div><div class="mono">${aBlock(x.height,x.block_hash)}</div>`}
+        <div>${t('c_from')}</div><div class="mono">${x.coinbase?'<span class="pill cb">'+t('coinbase')+'</span>':aAddr(x.from,x.from)}</div>
+        <div>${t('c_to')}</div><div class="mono">${aAddr(x.to,x.to)}</div>
+        <div>${t('c_amount')}</div><div class="big">${fmt(x.amount)}</div>
+        <div>${t('c_fee')}</div><div>${fmt(x.fee)}</div>
+        <div>${t('nonce')}</div><div>${x.nonce}</div>
       </div></div>`;
-  }catch(e){ $('view').innerHTML = `<a class="back" onclick="showHome()">← назад</a><div class="err">${esc(e.message)}</div>`; }
+  }catch(e){ $('view').innerHTML = `<a class="back" onclick="showHome()">${t('backhome')}</a><div class="err">${esc(e.message)}</div>`; }
 }
 
 let addrState = {addr:'', page:0, hist:[]};
@@ -201,18 +241,18 @@ async function showAddr(addr){
     let recv=0, sent=0, mined=0;
     (hist||[]).forEach(h=>{ if(h.from===addr) sent+=h.amount+h.fee; else { recv+=h.amount; if(h.from==='coinbase') mined+=h.amount; } });
     addrState = {addr, page:0, hist:hist||[]};
-    $('view').innerHTML = `<a class="back" onclick="showHome()">← к блокам</a>
-      <div class="card"><h2>Адрес</h2><div class="kv">
-        <div>адрес</div><div class="mono">${esc(addr)}${copy(addr)}</div>
-        <div>баланс</div><div class="big">${fmt(b.balance)}</div>
-        <div>получено</div><div>${fmt(recv)} <span class="muted">(намайнено ${fmt(mined)})</span></div>
-        <div>отправлено</div><div>${fmt(sent)}</div>
-        <div>транзакций</div><div>${(hist||[]).length}${(hist||[]).length>=200?'+':''}</div>
-        <div>nonce</div><div>${b.nonce}</div>
+    $('view').innerHTML = `<a class="back" onclick="showHome()">${t('backblocks')}</a>
+      <div class="card"><h2>${t('address')}</h2><div class="kv">
+        <div>${t('address')}</div><div class="mono">${esc(addr)}${copy(addr)}</div>
+        <div>${t('balance')}</div><div class="big">${fmt(b.balance)}</div>
+        <div>${t('received')}</div><div>${fmt(recv)} <span class="muted">(${t('mined')} ${fmt(mined)})</span></div>
+        <div>${t('sent')}</div><div>${fmt(sent)}</div>
+        <div>${t('ntx')}</div><div>${(hist||[]).length}${(hist||[]).length>=200?'+':''}</div>
+        <div>${t('nonce2')}</div><div>${b.nonce}</div>
       </div></div>
-      <div class="card"><h2>История транзакций</h2><div id="histbox"></div></div>`;
+      <div class="card"><h2>${t('txhist')}</h2><div id="histbox"></div></div>`;
     renderHist();
-  }catch(e){ $('view').innerHTML = `<a class="back" onclick="showHome()">← назад</a><div class="err">${esc(e.message)}</div>`; }
+  }catch(e){ $('view').innerHTML = `<a class="back" onclick="showHome()">${t('backhome')}</a><div class="err">${esc(e.message)}</div>`; }
 }
 function renderHist(){
   const {addr, page, hist} = addrState;
@@ -220,20 +260,21 @@ function renderHist(){
   const rows = pageItems.map(h=>{
     const out = h.from === addr;
     const peer = out ? h.to : h.from;
+    const typ = out ? t('send') : (h.from==='coinbase'?t('mining'):t('recv'));
     return `<tr><td>${aBlock(h.height,'#'+h.height)}</td>
       <td>${tstr(h.time)}</td>
-      <td><span class="pill ${out?'out':'in'}">${out?'отправка':(h.from==='coinbase'?'майнинг':'получение')}</span></td>
+      <td><span class="pill ${out?'out':'in'}">${typ}</span></td>
       <td class="mono">${peer==='coinbase'?'<span class="pill cb">coinbase</span>':aAddr(peer,short(peer,14))}</td>
       <td class="mono">${aTx(h.txid,short(h.txid,10))}</td>
       <td>${out?'−':'+'}${fmt(h.amount)}</td></tr>`;
-  }).join('') || '<tr><td colspan="6" class="muted">нет транзакций</td></tr>';
+  }).join('') || `<tr><td colspan="6" class="muted">${t('notx')}</td></tr>`;
   const pages = Math.ceil(hist.length/per);
   $('histbox').innerHTML = `<table>
-    <tr><th>блок</th><th>время</th><th>тип</th><th>контрагент</th><th>txid</th><th>сумма</th></tr>${rows}</table>
+    <tr><th>${t('c_block')}</th><th>${t('c_time')}</th><th>${t('c_type')}</th><th>${t('c_peer')}</th><th>${t('c_txid')}</th><th>${t('c_amount')}</th></tr>${rows}</table>
     ${pages>1?`<div class="pager">
-      <button onclick="addrPage(-1)" ${page===0?'disabled':''}>← новее</button>
-      <span class="muted" style="align-self:center">стр. ${page+1} из ${pages}</span>
-      <button onclick="addrPage(1)" ${page>=pages-1?'disabled':''}>старее →</button></div>`:''}`;
+      <button onclick="addrPage(-1)" ${page===0?'disabled':''}>${t('newer')}</button>
+      <span class="muted" style="align-self:center">${t('page')} ${page+1} ${t('of')} ${pages}</span>
+      <button onclick="addrPage(1)" ${page>=pages-1?'disabled':''}>${t('older')}</button></div>`:''}`;
 }
 function addrPage(d){ addrState.page += d; renderHist(); }
 
@@ -246,8 +287,8 @@ async function showRich(){
       <td class="mono">${aAddr(e.address,e.address)}</td>
       <td>${fmt(e.balance)}</td>
       <td>${(e.balance/supply*100).toFixed(2)}%</td></tr>`).join('');
-    $('view').innerHTML = `<div class="card"><h2>Богатейшие адреса<span class="tag">${list.length}</span></h2>
-      <table><tr><th>#</th><th>адрес</th><th>баланс</th><th>доля</th></tr>${rows}</table></div>`;
+    $('view').innerHTML = `<div class="card"><h2>${t('rich_t')}<span class="tag">${list.length}</span></h2>
+      <table><tr><th>#</th><th>${t('address')}</th><th>${t('balance')}</th><th>${t('share')}</th></tr>${rows}</table></div>`;
   }catch(e){ $('view').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
 
@@ -255,15 +296,15 @@ async function showMempool(){
   location.hash = 'mempool';
   try{
     const mp = await api('/mempool');
-    const rows = (mp||[]).map(t=>{
-      const from = addrOf(t.from_pub);
-      return `<tr><td class="mono">${aTx(txId(t),short(txId(t),16))}</td>
+    const rows = (mp||[]).map(x=>{
+      const from = addrOf(x.from_pub);
+      return `<tr><td class="mono">${aTx(txId(x),short(txId(x),16))}</td>
         <td class="mono">${aAddr(from,short(from,14))}</td>
-        <td class="mono">${aAddr(t.to,short(t.to,14))}</td>
-        <td>${fmt(t.amount)}</td><td>${fmt(t.fee)}</td></tr>`;
-    }).join('') || '<tr><td colspan="5" class="muted">мемпул пуст — все транзакции подтверждены</td></tr>';
-    $('view').innerHTML = `<div class="card"><h2>Мемпул (неподтверждённые)<span class="tag">${(mp||[]).length}</span></h2>
-      <table><tr><th>txid</th><th>от</th><th>кому</th><th>сумма</th><th>комиссия</th></tr>${rows}</table></div>`;
+        <td class="mono">${aAddr(x.to,short(x.to,14))}</td>
+        <td>${fmt(x.amount)}</td><td>${fmt(x.fee)}</td></tr>`;
+    }).join('') || `<tr><td colspan="5" class="muted">${t('mp_empty')}</td></tr>`;
+    $('view').innerHTML = `<div class="card"><h2>${t('mp_t')}<span class="tag">${(mp||[]).length}</span></h2>
+      <table><tr><th>${t('c_txid')}</th><th>${t('c_from')}</th><th>${t('c_to')}</th><th>${t('c_amount')}</th><th>${t('c_fee')}</th></tr>${rows}</table></div>`;
   }catch(e){ $('view').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
 
@@ -275,11 +316,10 @@ async function doSearch(){
     if(r.type==='address') showAddr(r.value);
     else if(r.type==='tx') showTx(r.value);
     else if(r.type==='block') showBlock(r.height);
-  }catch(e){ $('view').innerHTML = `<div class="err">Ничего не найдено: ${esc(e.message)}</div>`; }
+  }catch(e){ $('view').innerHTML = `<div class="err">${t('notfound')}: ${esc(e.message)}</div>`; }
 }
 $('q').addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
 
-// ---- SHA-256 (pure JS) to compute addresses, txids and block hashes over HTTP
 function sha256(data){
   const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
   let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
@@ -288,10 +328,10 @@ function sha256(data){
   dv.setUint32(padded.length-8,Math.floor(bitLen/0x100000000));dv.setUint32(padded.length-4,bitLen>>>0);
   const w=new Int32Array(64),rr=(x,n)=>(x>>>n)|(x<<(32-n));
   for(let i=0;i<padded.length;i+=64){
-    for(let t=0;t<16;t++)w[t]=dv.getInt32(i+t*4);
-    for(let t=16;t<64;t++){const s0=rr(w[t-15],7)^rr(w[t-15],18)^(w[t-15]>>>3),s1=rr(w[t-2],17)^rr(w[t-2],19)^(w[t-2]>>>10);w[t]=(w[t-16]+s0+w[t-7]+s1)|0;}
+    for(let t2=0;t2<16;t2++)w[t2]=dv.getInt32(i+t2*4);
+    for(let t2=16;t2<64;t2++){const s0=rr(w[t2-15],7)^rr(w[t2-15],18)^(w[t2-15]>>>3),s1=rr(w[t2-2],17)^rr(w[t2-2],19)^(w[t2-2]>>>10);w[t2]=(w[t2-16]+s0+w[t2-7]+s1)|0;}
     let[a,b,c,d,e,f,g,h]=H;
-    for(let t=0;t<64;t++){const S1=rr(e,6)^rr(e,11)^rr(e,25),ch=(e&f)^(~e&g),t1=(h+S1+ch+K[t]+w[t])|0,S0=rr(a,2)^rr(a,13)^rr(a,22),mj=(a&b)^(a&c)^(b&c),t2=(S0+mj)|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;}
+    for(let t2=0;t2<64;t2++){const S1=rr(e,6)^rr(e,11)^rr(e,25),ch=(e&f)^(~e&g),t1=(h+S1+ch+K[t2]+w[t2])|0,S0=rr(a,2)^rr(a,13)^rr(a,22),mj=(a&b)^(a&c)^(b&c),t22=(S0+mj)|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t22)|0;}
     H=H.map((x,j)=>(x+[a,b,c,d,e,f,g,h][j])|0);
   }
   const out=new Uint8Array(32),ov=new DataView(out.buffer);H.forEach((x,j)=>ov.setInt32(j*4,x));return out;
@@ -300,10 +340,9 @@ const hexstr=b=>Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
 const unhex=s=>new Uint8Array(s.match(/.{2}/g).map(x=>parseInt(x,16)));
 const enc=new TextEncoder();
 function addrOf(pubHex){ return pubHex ? 'crb1'+hexstr(sha256(unhex(pubHex)).slice(0,20)) : 'coinbase'; }
-// txid = sha256(signing-payload + "|" + sig), matching Go Tx.ID()
-function txId(t){
-  const payload = `cerebra-tx-v1|${t.from_pub}|${t.to}|${t.amount}|${t.fee}|${t.nonce}`;
-  return hexstr(sha256(enc.encode(payload + '|' + t.sig)));
+function txId(x){
+  const payload = `cerebra-tx-v1|${x.from_pub}|${x.to}|${x.amount}|${x.fee}|${x.nonce}`;
+  return hexstr(sha256(enc.encode(payload + '|' + x.sig)));
 }
 function blockHash(b){
   const buf=new Uint8Array(124),dv=new DataView(buf.buffer);
@@ -322,8 +361,9 @@ function route(){
   if(h==='mempool') return showMempool();
   showHome();
 }
+applyChrome();
 loadStats().then(route);
-setInterval(()=>{ loadStats(); if(location.hash==='' ) showHome(); }, 10000);
+setInterval(()=>{ loadStats(); if(location.hash==='') showHome(); }, 10000);
 </script>
 </body>
 </html>
