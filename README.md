@@ -12,9 +12,11 @@ proof-of-work algorithm.** No GPU, no ASIC - ever. One CPU, one vote.
 
 **Community:**
 [Telegram](https://t.me/cereblix) ·
+[Discord](https://discord.gg/HnffKP86JM) ·
 [X / Twitter](https://x.com/Cereblix) ·
-[Bitcointalk ANN](https://bitcointalk.org/index.php?topic=5585629.0) ·
-[Altcoinstalks ANN](https://www.altcoinstalks.com/index.php?topic=344237.0)
+[Bitcointalk EN](https://bitcointalk.org/index.php?topic=5585629.0) ·
+[Bitcointalk RU](https://bitcointalk.org/index.php?topic=5585637.0) ·
+[Altcoinstalks](https://www.altcoinstalks.com/index.php?topic=344237.0)
 
 > A free, open-source project with **zero premine, zero fund, no fundraising**.
 > Mine it, fork it, run your own node - the code is all yours.
