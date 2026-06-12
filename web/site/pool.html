@@ -91,7 +91,7 @@ a{color:var(--acc)}
 <div class="card">
   <h2 data-i="how_t">Mine on the pool</h2>
   <pre id="cmd">cereblix-miner -addr crb1YOURADDRESS -node https://cereblix.com/pool/api</pre>
-  <div class="note" data-i-html="how_n">Your miner logs frequent "block found" - those are <b>shares</b>, not real blocks. Rewards arrive automatically once your balance crosses the minimum payout. Each share is <b>cryptographically bound to your address</b> (per-miner extranonce), so no one can claim your work.</div>
+  <div class="note" data-i-html="how_n">Your miner logs <b>"share accepted"</b> - those are shares (proofs of work at an easier target), not full blocks. Rewards arrive automatically as pool payouts once your balance crosses the minimum. Each share is <b>cryptographically bound to your address</b> (per-miner extranonce), so no one can claim your work.</div>
 </div>
 
 <div class="card">
@@ -115,7 +115,7 @@ const I = { en:{}, ru:{
   title:'Майнинг-<em>пул</em>',
   sub:"Стабильные выплаты с низкой дисперсией: пул платит пропорционально присланной работе, даже когда сложность сети высокая. Просто направь обычный майнер на него - ничего ставить не нужно.",
   how_t:"Майнить на пуле",
-  how_n:'Майнер часто пишет "block found" - это <b>шары</b>, а не настоящие блоки. Выплаты приходят автоматически, когда баланс превысит минимум. Каждая шара <b>криптографически привязана к твоему адресу</b> (extranonce на майнера), поэтому чужой твою работу не присвоит.',
+  how_n:'Майнер пишет <b>"share accepted"</b> - это шары (доказательства работы на облегчённой цели), а не целые блоки. Выплаты приходят автоматически, когда баланс превысит минимум. Каждая шара <b>криптографически привязана к твоему адресу</b> (extranonce на майнера), поэтому чужой твою работу не присвоит.',
   you_t:"Твоя статистика", you_l:"Твой адрес CRB", you_hint:"Введи адрес, чтобы подсветить свою строку ниже.",
   miners_t:"Майнеры", loading:"Загрузка…",
   foot:'Кошелёк пула: <span id="pooladdr" class="addr"></span> · обновление каждые 10с',

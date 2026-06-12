@@ -300,16 +300,19 @@ A pool so small CPUs earn a steady trickle instead of a rare lottery win. It
 speaks the **same getwork/submitwork protocol as the node**, so the stock
 `cereblix-miner` works against it unchanged - only the `-node` URL differs. The
 pool hands out work paying its own wallet at an **easier "share" target**;
-every submitted share is re-verified (a real NeuroMorph hash). When a share also
-meets the network target the pool forwards the block. Block rewards are split
-among miners proportional to their shares (PROP, with a small pool fee) and paid
-out automatically once a miner crosses a threshold - paying only the *matured*
-(spendable) balance and in partial amounts as more coinbase matures.
+every submitted share is re-verified (a real NeuroMorph hash). Each miner is
+issued a unique **extranonce** that it pins into the top bits of every nonce, so
+a share is cryptographically **bound to one miner** - the pool rejects a share
+whose nonce tag doesn't match, so no one can claim another miner's work. When a
+share also meets the network target the pool forwards the block. Block rewards are
+split among miners proportional to their shares (PROP, with a small pool fee) and
+paid out automatically once a miner crosses a threshold - paying only the
+*matured* (spendable) balance and in partial amounts as more coinbase matures.
 
 ### 6.7. Faucet with a proof-of-useful-work captcha (`cmd/cereblix-faucet`)
 A faucet that lets newcomers try the wallet without mining first. Its anti-bot
 captcha is **a real NeuroMorph share**: the browser mines one share (via the
-WebAssembly hasher) against a template paying a dedicated faucet wallet - so the
+WebAssembly hasher) against a template paying a dedicated **captcha wallet** - so the
 "captcha" is genuine work in the coin's own algorithm (a bot must actually mine),
 and occasionally a share is also a full block. The faucet then sends a tiered
 amount, rate-limited per address and per IP (real client IP taken from the last

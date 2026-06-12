@@ -40,6 +40,8 @@ var (
 	nodeURL   string
 	addr      string
 	hashCount atomic.Uint64
+	shares    atomic.Uint64 // accepted pool shares this session
+	blocks    atomic.Uint64 // real blocks found (solo, or pool shares that hit the network target)
 	current   atomic.Pointer[work]
 	client    = &http.Client{Timeout: 15 * time.Second}
 )
@@ -87,8 +89,8 @@ func main() {
 		time.Sleep(15 * time.Second)
 		cur := hashCount.Load()
 		w := current.Load()
-		log.Printf("hashrate: %.1f H/s | mining block %d (epoch %d)",
-			float64(cur-last)/15.0, w.Height, w.Epoch)
+		log.Printf("hashrate: %.1f H/s | block %d (epoch %d) | shares %d · blocks %d",
+			float64(cur-last)/15.0, w.Height, w.Epoch, shares.Load(), blocks.Load())
 		last = cur
 	}
 }
@@ -177,11 +179,32 @@ func submit(id string, nonce uint64, height uint64) {
 		return
 	}
 	defer resp.Body.Close()
-	var out map[string]string
-	json.NewDecoder(resp.Body).Decode(&out)
-	if out["error"] != "" {
-		log.Printf("block %d rejected: %s", height, out["error"])
-		return
+	// A node answers {"result":"accepted","hash":...} - that's a real block.
+	// A pool answers {"result":"share","block":bool} - "share" is just a proof at
+	// the easier pool target (NOT a block); "block":true means this share also met
+	// the network target and the pool turned it into a real block.
+	var out struct {
+		Result string `json:"result"`
+		Hash   string `json:"hash"`
+		Block  bool   `json:"block"`
+		Error  string `json:"error"`
 	}
-	log.Printf("*** BLOCK %d FOUND AND ACCEPTED *** hash %s", height, out["hash"])
+	json.NewDecoder(resp.Body).Decode(&out)
+	switch {
+	case out.Error != "":
+		log.Printf("submit for block %d rejected: %s", height, out.Error)
+	case out.Result == "stale" || out.Result == "duplicate":
+		// transient (new work raced in / already counted) - not worth a line
+	case out.Result == "share":
+		n := shares.Add(1)
+		if out.Block {
+			blocks.Add(1)
+			log.Printf("*** your share solved BLOCK %d for the pool! *** (share #%d) - reward is shared", height, n)
+		} else {
+			log.Printf("share accepted (#%d) - paid out automatically by the pool", n)
+		}
+	default: // solo mining straight against a node: an accepted submit IS a block
+		blocks.Add(1)
+		log.Printf("*** BLOCK %d FOUND AND ACCEPTED *** %s", height, out.Hash)
+	}
 }

@@ -101,8 +101,10 @@ The stock miner works against the pool unchanged - just point `-node` at it:
 cereblix-miner -addr crb1YOURADDRESS -node https://cereblix.com/pool/api
 ```
 
-On the pool the miner logs frequent "block found" - those are *shares*; your real
-reward arrives as automatic pool payouts to your address.
+On the pool the miner logs `share accepted` - those are *shares* (proofs of work
+at an easier target), not full blocks; your real reward arrives as automatic pool
+payouts to your address. Each share is cryptographically bound to your address
+(per-miner extranonce), so no one can claim your work.
 
 ### Free faucet
 
