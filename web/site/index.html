@@ -166,6 +166,39 @@ footer{padding:40px 0;color:var(--mut);font-size:14px;border-top:1px solid var(-
 .naming .tag2 b{color:var(--acc)}
 @media(max-width:560px){.naming .gloss{grid-template-columns:1fr}}
 @media(max-width:560px){.aurora{filter:blur(70px)}.aurora.a3{display:none}}
+/* roadmap */
+.rm-intro{color:var(--mut);margin-bottom:6px;max-width:710px;font-size:16px}
+.horizon{margin:30px 0 0}
+.hz{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.hz b{font-family:var(--fd);font-size:13.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hz s{text-decoration:none;color:var(--mut);font-size:12.5px}
+.hz::before{content:"";flex:0 0 22px;height:2px;border-radius:2px;background:var(--grad)}
+.phase{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:17px 20px;margin-bottom:12px;backdrop-filter:blur(8px);transition:border-color .2s}
+.phase:hover{border-color:var(--border2)}
+.ph-head{display:flex;align-items:center;gap:11px;margin-bottom:14px;flex-wrap:wrap}
+.ph-num{flex:0 0 auto;width:30px;height:30px;border-radius:9px;background:var(--grad);color:#06121f;font-family:var(--fd);font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px -4px rgba(34,211,238,.5)}
+.ph-title{font-family:var(--fd);font-size:18px;font-weight:700;flex:1;min-width:130px}
+.ph-prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);font-weight:600;font-family:var(--fd)}
+.ph-bar{width:58px;height:5px;background:#0b1120;border-radius:5px;overflow:hidden}
+.ph-bar i{display:block;height:100%;background:var(--grad)}
+.chip{font-size:11.5px;font-weight:700;padding:3px 11px;border-radius:999px;white-space:nowrap;font-family:var(--fd)}
+.chip.done{background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.4)}
+.chip.doing{background:rgba(34,211,238,.15);color:#22d3ee;border:1px solid rgba(34,211,238,.4)}
+.chip.next{background:rgba(167,139,250,.15);color:#a78bfa;border:1px solid rgba(167,139,250,.4)}
+.chip.plan{background:rgba(146,180,255,.1);color:#90a0bd;border:1px solid var(--border)}
+.tasks{list-style:none;display:grid;gap:9px}
+.tasks li{display:flex;align-items:flex-start;gap:11px;font-size:14.5px;line-height:1.45}
+.tasks .ic{flex:0 0 auto;width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;margin-top:1px}
+.tasks li.done .ic{background:rgba(52,211,153,.18);color:#34d399;border:1px solid rgba(52,211,153,.5)}
+.tasks li.done .tx{color:var(--txt)}
+.tasks li.todo .ic{border:1.5px solid var(--border2);background:transparent}
+.tasks li.todo .tx{color:var(--mut)}
+.tasks li .tx b{color:var(--acc)}
+.star{display:inline-block;font-size:11px;font-weight:700;color:#06121f;background:var(--grad);padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:middle;font-family:var(--fd)}
+.vision{background:linear-gradient(135deg,rgba(167,139,250,.13),rgba(34,211,238,.07));border:1px solid var(--border2);border-radius:18px;padding:24px;backdrop-filter:blur(8px)}
+.vision b{font-family:var(--fd);font-size:18px;display:block;margin-bottom:8px}
+.vision p{color:var(--mut);font-size:15px}
+.rm-note{margin-top:20px;color:var(--mut);font-size:13px;line-height:1.6;border-left:2px solid var(--border2);padding-left:14px;max-width:730px;font-style:italic}
 </style>
 </head>
 <body>
@@ -187,6 +220,7 @@ footer{padding:40px 0;color:var(--mut);font-size:14px;border-top:1px solid var(-
     <a href="explorer.html" data-i="nav_explorer">Explorer</a>
     <a href="wallet/" data-i="nav_wallet">Wallet</a>
     <a href="faucet.html" data-i="nav_faucet">Faucet</a>
+    <a href="#roadmap" data-i="nav_roadmap">Roadmap</a>
     <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">GitHub</a>
     <span class="langsw"><button data-lang="en" onclick="setLang('en')">EN</button><button data-lang="ru" onclick="setLang('ru')">RU</button></span>
   </div>
@@ -330,6 +364,107 @@ cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
   <div class="card"><table id="blocks"><thead><tr><th>#</th><th data-i="bl_time">Time</th><th data-i="bl_hash">Hash</th><th>Tx</th><th data-i="bl_miner">Miner</th></tr></thead><tbody></tbody></table></div>
 </section>
 
+<section id="roadmap">
+  <h2 data-i-html="rm_h2">Road<em>map</em></h2>
+  <p class="rm-intro" data-i="rm_intro">Open and honest - what's built (✓) and what's still ahead (○). No dates, no price promises: liquidity and listings follow real demand and community, not hype.</p>
+
+  <div class="horizon">
+    <div class="hz"><b data-i="hz1">Horizon 1 — Launch</b><s data-i="hz1s">live now</s></div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">1</span><span class="ph-title" data-i="rm1_t">Foundation</span><span class="chip done" data-i="rm_c_done">Done</span><span class="ph-prog"><span class="ph-bar"><i style="width:100%"></i></span>5/5</span></div>
+      <ul class="tasks">
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t1_1">NeuroMorph - self-mutating, CPU-only proof-of-work</span></li>
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t1_2">Full node + web &amp; CLI wallet + block explorer</span></li>
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t1_3">Mine right in the browser (WASM) - any device</span></li>
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t1_4">Open source · bilingual site · Telegram · fair launch, no premine</span></li>
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t1_5">Security: DoS/SSRF guards, key-only SSH, chain-id replay protection</span></li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">2</span><span class="ph-title" data-i="rm2_t">Mining for everyone</span><span class="chip doing" data-i="rm_c_doing">In progress</span><span class="ph-prog"><span class="ph-bar"><i style="width:50%"></i></span>3/6</span></div>
+      <ul class="tasks">
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t2_1">Mining pool - steady rewards for small CPUs</span></li>
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t2_2">Free faucet with proof-of-useful-work captcha</span></li>
+        <li class="done"><span class="ic">✓</span><span class="tx" data-i="t2_3">One-command miner install</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t2_4">Domain + HTTPS (cereblix.com)</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t2_5">Public pool dashboard</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t2_6">Grow to many independent miners &amp; nodes</span></li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">3</span><span class="ph-title" data-i="rm3_t">Trust &amp; community</span><span class="chip next" data-i="rm_c_next">Next</span><span class="ph-prog"><span class="ph-bar"><i style="width:0"></i></span>0/3</span></div>
+      <ul class="tasks">
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t3_1">Public launch announcement (Bitcointalk, forums)</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t3_2">Guides &amp; documentation</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t3_4">Start the community everywhere - Telegram, X, Reddit &amp; more</span></li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">4</span><span class="ph-title" data-i="rm4_t">On-chain liquidity</span><span class="chip plan" data-i="rm_c_plan">Planned</span><span class="ph-prog"><span class="ph-bar"><i style="width:0"></i></span>0/4</span></div>
+      <ul class="tasks">
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t4_1">Wrapped CRB (BEP-20)</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t4_2">Bridge (mint / burn)</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t4_3">DEX pool for price discovery (PancakeSwap)</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t4_4">Auto-indexing on Dexscreener</span></li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">5</span><span class="ph-title" data-i="rm5_t">Listings &amp; reach</span><span class="chip plan" data-i="rm_c_plan2">Planned</span><span class="ph-prog"><span class="ph-bar"><i style="width:0"></i></span>0/1</span></div>
+      <ul class="tasks">
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t5_1">CoinGecko / CoinMarketCap data listing</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="horizon">
+    <div class="hz"><b data-i="hz2">Horizon 2 — Utility &amp; ecosystem</b><s data-i="hz2s">next</s></div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">6</span><span class="ph-title" data-i="rm6_t">Real-world use</span><span class="chip plan" data-i="rm_c_plan3">Planned</span></div>
+      <ul class="tasks">
+        <li class="todo"><span class="ic"></span><span class="tx" data-i-html="t6_1"><b>Cereblix Captcha</b> - the visitor solves a captcha while their machine mines CRB: realness is proven twice (the captcha + the proof-of-work), and project owners earn from it - anti-bot and monetization in one <span class="star">flagship</span></span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t6_2">Native mobile app (wallet + background mining)</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t6_3">Atomic swaps CRB↔BTC/LTC - trustless, no custodial bridge</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t6_4">Payment tools: "Pay in CRB" button, POS, micropayments</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="horizon">
+    <div class="hz"><b data-i="hz3">Horizon 3 — Programmability &amp; scaling</b><s data-i="hz3s">vision</s></div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">7</span><span class="ph-title" data-i="rm7_t">A smarter chain</span><span class="chip plan" data-i="rm_c_plan4">Planned</span></div>
+      <ul class="tasks">
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t7_1">Smart contracts: a light WASM/EVM-style VM for tokens, NFTs, DeFi</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t7_2">Hardware-wallet support (Ledger / Trezor) + multisig</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t7_3">L2 / payment channels for instant micro-tx</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t7_4">Light clients (SPV) - verify from a phone</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="horizon">
+    <div class="hz"><b data-i="hz4">Horizon 4 — Governance &amp; maturity</b><s data-i="hz4s">vision</s></div>
+    <div class="phase">
+      <div class="ph-head"><span class="ph-num">8</span><span class="ph-title" data-i="rm8_t">Hand over the keys</span><span class="chip plan" data-i="rm_c_plan5">Planned</span></div>
+      <ul class="tasks">
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t8_1">On-chain DAO governance + transparent grants treasury</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t8_2">Fully decentralized bridge (multisig to trustless)</span></li>
+        <li class="todo"><span class="ic"></span><span class="tx" data-i="t8_3">Ongoing NeuroMorph upgrades + miner tail-emission</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="horizon">
+    <div class="hz"><b data-i="hz5">Horizon 5 — The big picture</b></div>
+    <div class="vision">
+      <b data-i="rm9_t">A people's compute economy</b>
+      <p data-i="rm9_b">Millions of ordinary CPUs whose work is genuinely useful - anti-bot, verifiable compute - and rewarded. Everyone's processor becomes a vote in the network and a source of income. Not a speculative token: infrastructure.</p>
+    </div>
+  </div>
+
+  <p class="rm-note" data-i="rm_note">★ This roadmap is approximate and may be reworked as the team's vision and current realities evolve - but every change will be aimed at one thing only: the growth and value of CRB.</p>
+</section>
+
 <section id="faq" class="faq">
   <h2><em>FAQ</em></h2>
   <details><summary data-i="faq1_q">Why is "ASIC-resistant forever" true, not marketing?</summary>
@@ -356,7 +491,57 @@ cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
 const I18N = {
   en: {},  // English is the source text in the HTML; en = identity
   ru: {
-    nav_home:"Главная", nav_mine:"Майнинг", nav_explorer:"Обозреватель", nav_wallet:"Кошелёк", nav_faucet:"Кран",
+    nav_home:"Главная", nav_mine:"Майнинг", nav_explorer:"Обозреватель", nav_wallet:"Кошелёк", nav_faucet:"Кран", nav_roadmap:"Дорожная карта",
+    rm_h2:'Дорожная <em>карта</em>',
+    rm_intro:"Открыто и честно - что уже сделано (✓) и что впереди (○). Без дат и обещаний цены: ликвидность и листинги придут по мере реального спроса и комьюнити, а не хайпа.",
+    hz1:"Горизонт 1 — Запуск", hz1s:"уже в эфире",
+    hz2:"Горизонт 2 — Польза и экосистема", hz2s:"дальше",
+    hz3:"Горизонт 3 — Программируемость и масштаб", hz3s:"видение",
+    hz4:"Горизонт 4 — Управление и зрелость", hz4s:"видение",
+    hz5:"Горизонт 5 — Большое видение",
+    rm_c_done:"Готово", rm_c_doing:"В работе", rm_c_next:"Дальше",
+    rm_c_plan:"Планы", rm_c_plan2:"Планы", rm_c_plan3:"Планы", rm_c_plan4:"Планы", rm_c_plan5:"Планы",
+    rm1_t:"Фундамент",
+    t1_1:"NeuroMorph - самомутирующий PoW только под CPU",
+    t1_2:"Полная нода + веб- и CLI-кошелёк + обозреватель блоков",
+    t1_3:"Майнинг прямо в браузере (WASM) - любое устройство",
+    t1_4:"Открытый код · двуязычный сайт · Telegram · честный запуск без премайна",
+    t1_5:"Безопасность: защита от DoS/SSRF, SSH по ключу, chain-id replay-защита",
+    rm2_t:"Майнинг для каждого",
+    t2_1:"Майнинг-пул - стабильная награда мелким CPU",
+    t2_2:"Бесплатный кран с капчёй на полезном PoW",
+    t2_3:"Установка майнера одной командой",
+    t2_4:"Домен + HTTPS (cereblix.com)",
+    t2_5:"Публичный дашборд пула",
+    t2_6:"Рост до множества независимых майнеров и нод",
+    rm3_t:"Доверие и сообщество",
+    t3_1:"Публичный анонс запуска (Bitcointalk, форумы)",
+    t3_2:"Гайды и документация",
+    t3_4:"Старт комьюнити во всех медиа - Telegram, X (Twitter), Reddit и др.",
+    rm4_t:"Ликвидность on-chain",
+    t4_1:"Обёртка CRB (BEP-20)",
+    t4_2:"Мост (mint / burn)",
+    t4_3:"Пул на DEX для рыночной цены (PancakeSwap)",
+    t4_4:"Авто-индексация в Dexscreener",
+    rm5_t:"Листинги и охват",
+    t5_1:"Данные в CoinGecko / CoinMarketCap",
+    rm6_t:"Реальная польза",
+    t6_1:'<b>Cereblix Captcha</b> - посетитель решает капчу, и одновременно его машина майнит CRB: реальность подтверждается дважды (капчей и proof-of-work), а владельцы проектов на этом зарабатывают - и защита от ботов, и монетизация <span class="star">флагман</span>',
+    t6_2:"Нативное мобильное приложение (кошелёк + фоновый майнинг)",
+    t6_3:"Атомарные свопы CRB↔BTC/LTC - трастлесс, без кастодиального моста",
+    t6_4:"Платёжные инструменты: кнопка «Оплатить в CRB», POS, микроплатежи",
+    rm7_t:"Умная цепь",
+    t7_1:"Смарт-контракты: лёгкий WASM/EVM-VM для токенов, NFT, DeFi",
+    t7_2:"Поддержка аппаратных кошельков (Ledger / Trezor) + мультисиг",
+    t7_3:"L2 / платёжные каналы для мгновенных микротранз",
+    t7_4:"Лёгкие клиенты (SPV) - проверка с телефона",
+    rm8_t:"Отдать ключи",
+    t8_1:"On-chain DAO-управление + прозрачная казна на гранты",
+    t8_2:"Полностью децентрализованный мост (мультисиг → trustless)",
+    t8_3:"Регулярные апгрейды NeuroMorph + tail-эмиссия майнерам",
+    rm9_t:"Народная вычислительная экономика",
+    rm9_b:"Миллионы обычных процессоров, чья работа реально полезна - анти-бот, верифицируемые вычисления - и вознаграждается. Процессор каждого человека становится голосом в сети и источником дохода. Не спекулятивный токен: инфраструктура.",
+    rm_note:"★ Дорожная карта примерная и может быть переработана исходя из видения команды и текущих реалий - но любые изменения будут направлены только на одно: рост и пользу CRB.",
     tg_join:"Заходи в наш Telegram", tg_sub:"Новости, помощь по майнингу и комьюнити - @cereblix",
     hero_badge:"Сеть в эфире · честный запуск, без премайна",
     hero_h1:'Монета, которую майнит <em>процессор</em>.<br>Не видеокарта. Не ASIC. <em>Никогда.</em>',
