@@ -19,6 +19,13 @@ tools/whonow.sh
 tools/audit.sh
 tools/fw.sh
 tools/caption.txt
+tools/recover-keys.sh
+tools/derive-addr.py
+tools/genauth.sh
+tools/srv-nodes.py
+tools/checktmp.sh
+tools/findwallet.sh
+tools/hunt-wallet.sh
 logo/
 
 # Wallets & chain data
