@@ -293,6 +293,7 @@ footer{padding:40px 0;color:var(--mut);font-size:14px;border-top:1px solid var(-
   <ol style="margin:14px 0 14px 22px;color:var(--mut)">
     <li data-i-html="algo_1">Unfolds a <b>random program</b> (384-768 instructions) from the header hash for a virtual machine: integer math, IEEE-754 float, hardware AES rounds, data-dependent branches.</li>
     <li data-i-html="algo_2">Fills a <b>2 MiB scratchpad</b> - sized for the CPU's L2/L3 cache. Random access to it makes cheap external memory useless.</li>
+    <li data-i-html="algo_2b">Walks a chain of data-dependent random reads across a <b>64 MiB memory-hard dataset</b> (rebuilt every epoch) - binding each hash to real DRAM latency, so any ASIC must carry 64 MiB of true random-access memory.</li>
     <li data-i-html="algo_3">Runs 32-64 execution loops, mixing registers back into memory - work cannot be skipped.</li>
     <li data-i-html="algo_4">Folds everything into SHA-256 and compares against the difficulty target.</li>
   </ol>
@@ -562,6 +563,7 @@ const I18N = {
     algo_intro:"Для каждого варианта блока (nonce) алгоритм:",
     algo_1:'Разворачивает из хэша заголовка <b>случайную программу</b> (384-768 инструкций) для виртуальной машины: целочисленная математика, IEEE-754 float, аппаратные AES-раунды, ветвления, зависящие от данных.',
     algo_2:'Заполняет <b>2 МиБ scratchpad</b> - ровно под L2/L3-кэш процессора. Случайный доступ к нему делает дешёвую внешнюю память бесполезной.',
+    algo_2b:'Проходит цепочкой случайных, зависящих от данных чтений по <b>64-МиБ memory-hard датасету</b> (пересобирается каждую эпоху) - привязывая каждый хэш к латентности настоящей DRAM, так что любой ASIC обязан нести 64 МиБ реальной памяти.',
     algo_3:'Прогоняет 32-64 цикла исполнения, вмешивая регистры обратно в память - пропустить работу нельзя.',
     algo_4:'Сворачивает всё в SHA-256 и сравнивает с целью сложности.',
     algo_outro:'А на границе каждой эпохи (4096 блоков ≈ 3 дня) из хэша цепи рождаются <b>новые правила VM</b>. ASIC, выпущенный сегодня, через эпоху исполняет уже «не тот» алгоритм. Единственное устройство, которому всё равно, - универсальный процессор.',
