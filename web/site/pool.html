@@ -124,7 +124,12 @@ const I = { en:{}, ru:{
   c_addr:"Адрес", c_hr:"Хешрейт", c_shares:"Шары (раунд)", c_owed:"К выплате", c_paid:"Выплачено",
   none:"Пока нет активных майнеров - стань первым.", you_row:"это ты"
 }};
-const EN={};
+const EN={
+  k_pool_hr:"Pool hashrate", k_net_hr:"Network hashrate", k_blocks:"Blocks found", k_miners:"Active miners",
+  k_fee:"Pool fee", k_paid:"Total paid", k_owed:"Owed", k_minpay:"Min payout",
+  c_addr:"Address", c_hr:"Hashrate", c_shares:"Shares (round)", c_owed:"Owed", c_paid:"Paid",
+  none:"No active miners yet - be the first.", you_row:"you"
+};
 function detect(){const s=localStorage.getItem('lang');return (s==='ru'||s==='en')?s:((navigator.language||'en').toLowerCase().startsWith('ru')?'ru':'en');}
 let LANG=detect();
 function applyLang(l){LANG=l;document.documentElement.lang=l;
@@ -144,18 +149,23 @@ function shortAddr(a){return a.slice(0,10)+'…'+a.slice(-6);}
 
 let LAST=null, NET=null;
 async function poll(){
-  try{
-    const [s,n]=await Promise.all([
-      fetch(POOL+'/poolstats',{cache:'no-store'}).then(r=>r.json()),
-      fetch(NODE+'/status',{cache:'no-store'}).then(r=>r.json()).catch(()=>null)
-    ]);
-    LAST=s; NET=n; $('live').style.display='inline-block';
-    render();
-  }catch(e){ /* keep last good render */ }
+  // Fetch each source independently so one failing never blocks the other or
+  // wedges the page on "Loading…".
+  try{ LAST = await (await fetch(POOL+'/poolstats',{cache:'no-store'})).json(); }
+  catch(e){ if(!LAST){ const mb=$('minerbox'); if(mb) mb.innerHTML='<div class="empty">'+(LANG==='ru'?'Не удалось загрузить статистику пула, повтор…':'Could not load pool stats, retrying…')+'</div>'; } }
+  try{ NET = await (await fetch(NODE+'/status',{cache:'no-store'})).json(); }catch(e){}
+  if(LAST){ const lv=$('live'); if(lv) lv.style.display='inline-block'; }
+  render();
 }
 function render(){
-  const s=LAST; if(!s){return;}
-  const fee=(s.fee_permil/10).toFixed(1);
+  const s=LAST; if(!s) return;
+  // Each section is isolated: a failure in one never leaves another stuck.
+  try{ renderStats(s); }catch(e){}
+  try{ renderMiners(s); }catch(e){ const mb=$('minerbox'); if(mb) mb.innerHTML='<div class="empty">—</div>'; }
+  try{ renderYou(s); }catch(e){}
+}
+function renderStats(s){
+  const fee=((+s.fee_permil||0)/10).toFixed(1);
   const tiles=[
     ['k_pool_hr', fmtHR(s.pool_hashrate)],
     ['k_net_hr', NET&&NET.hashrate!=null? fmtHR(NET.hashrate):'—'],
@@ -166,29 +176,31 @@ function render(){
     ['k_owed', fmtCRB(s.total_owed)],
     ['k_minpay', fmtCRB(s.min_payout)]
   ];
-  $('stats').innerHTML=tiles.map(([k,v])=>`<div class="stat"><div class="k">${esc(t(k))}</div><div class="v">${v}</div></div>`).join('');
-  $('pooladdr').textContent=s.pool_address||'';
-  $('cmd').textContent='cereblix-miner -addr '+( ($('addr').value.trim().match(/^crb1[0-9a-f]{40}$/)? $('addr').value.trim():'crb1YOURADDRESS') )+' -node https://cereblix.com/pool/api';
-
-  const me=$('addr').value.trim().toLowerCase();
-  const miners=(s.miners||[]).slice().sort((a,b)=>(b.hashrate-a.hashrate)||(b.shares-a.shares));
-  if(!miners.length){ $('minerbox').innerHTML='<div class="empty">'+esc(t('none'))+'</div>'; }
-  else{
-    const rows=miners.map(m=>{
-      const mine=m.address.toLowerCase()===me;
-      return `<tr class="${mine?'me':''}"><td class="addr">${esc(shortAddr(m.address))}${mine?' <span class="tag">'+esc(t('you_row'))+'</span>':''}</td>`
-        +`<td class="num">${fmtHR(m.hashrate)}</td><td class="num">${(+m.shares||0).toFixed(0)}</td>`
-        +`<td class="num">${fmtCRB(m.owed)}</td><td class="num">${fmtCRB(m.paid)}</td></tr>`;
-    }).join('');
-    $('minerbox').innerHTML=`<table><thead><tr><th>${esc(t('c_addr'))}</th><th class="num">${esc(t('c_hr'))}</th><th class="num">${esc(t('c_shares'))}</th><th class="num">${esc(t('c_owed'))}</th><th class="num">${esc(t('c_paid'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
-  }
-  // "your stats" line
-  const mine=(s.miners||[]).find(m=>m.address.toLowerCase()===me);
-  if(/^crb1[0-9a-f]{40}$/.test(me)){
-    $('you').innerHTML = mine
-      ? `${esc(t('c_hr'))}: <b>${fmtHR(mine.hashrate)}</b> · ${esc(t('c_owed'))}: <b>${fmtCRB(mine.owed)}</b> · ${esc(t('c_paid'))}: <b>${fmtCRB(mine.paid)}</b>`
-      : (LANG==='ru'?'Этот адрес ещё не присылал шар на пул.':'No shares from this address on the pool yet.');
-  } else { $('you').innerHTML = t('you_hint'); }
+  if($('stats')) $('stats').innerHTML=tiles.map(([k,v])=>`<div class="stat"><div class="k">${esc(t(k))}</div><div class="v">${v}</div></div>`).join('');
+  if($('pooladdr')) $('pooladdr').textContent=s.pool_address||'';
+  const a=$('addr'), av=a?a.value.trim():'';
+  if($('cmd')) $('cmd').textContent='cereblix-miner -addr '+(/^crb1[0-9a-f]{40}$/.test(av)?av:'crb1YOURADDRESS')+' -node https://cereblix.com/pool/api';
+}
+function renderMiners(s){
+  const a=$('addr'), me=(a?a.value.trim():'').toLowerCase();
+  const miners=(Array.isArray(s.miners)?s.miners:[]).slice().sort((x,y)=>((+y.hashrate||0)-(+x.hashrate||0))||((+y.shares||0)-(+x.shares||0)));
+  const mb=$('minerbox'); if(!mb) return;
+  if(!miners.length){ mb.innerHTML='<div class="empty">'+esc(t('none'))+'</div>'; return; }
+  const rows=miners.map(m=>{
+    const addr=String(m.address||''), mine=addr.toLowerCase()===me;
+    return `<tr class="${mine?'me':''}"><td class="addr">${esc(shortAddr(addr))}${mine?' <span class="tag">'+esc(t('you_row'))+'</span>':''}</td>`
+      +`<td class="num">${fmtHR(m.hashrate)}</td><td class="num">${(+m.shares||0).toFixed(0)}</td>`
+      +`<td class="num">${fmtCRB(m.owed)}</td><td class="num">${fmtCRB(m.paid)}</td></tr>`;
+  }).join('');
+  mb.innerHTML=`<table><thead><tr><th>${esc(t('c_addr'))}</th><th class="num">${esc(t('c_hr'))}</th><th class="num">${esc(t('c_shares'))}</th><th class="num">${esc(t('c_owed'))}</th><th class="num">${esc(t('c_paid'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function renderYou(s){
+  const a=$('addr'), me=(a?a.value.trim():'').toLowerCase(), y=$('you'); if(!y) return;
+  if(!/^crb1[0-9a-f]{40}$/.test(me)){ y.innerHTML=t('you_hint'); return; }
+  const mine=(Array.isArray(s.miners)?s.miners:[]).find(m=>String(m.address||'').toLowerCase()===me);
+  y.innerHTML = mine
+    ? `${esc(t('c_hr'))}: <b>${fmtHR(mine.hashrate)}</b> · ${esc(t('c_owed'))}: <b>${fmtCRB(mine.owed)}</b> · ${esc(t('c_paid'))}: <b>${fmtCRB(mine.paid)}</b>`
+    : (LANG==='ru'?'Этот адрес ещё не присылал шар на пул.':'No shares from this address on the pool yet.');
 }
 applyLang(LANG);
 poll();
