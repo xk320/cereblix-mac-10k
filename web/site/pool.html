@@ -91,6 +91,7 @@ a{color:var(--acc)}
 <div class="card">
   <h2 data-i="how_t">Mine on the pool</h2>
   <pre id="cmd">cereblix-miner -addr crb1YOURADDRESS -node https://cereblix.com/pool/api</pre>
+  <div class="note">🇷🇺 <b>RU / CIS</b> - if cereblix.com is slow or blocked, mine through our Moscow relay (same pool, no Cloudflare): <code>cereblix-miner -addr crb1YOURADDRESS -node https://ru.cereblix.com/pool/api</code></div>
   <div class="note" data-i-html="how_n">Your miner logs <b>"share accepted"</b> - those are shares (proofs of work at an easier target), not full blocks. Rewards arrive automatically as pool payouts once your balance crosses the minimum. Each share is <b>cryptographically bound to your address</b> (per-miner extranonce), so no one can claim your work.</div>
   <div class="note" data-i-html="pay_n">⏳ <b>Payouts take ~100 blocks (about 1.5–2 hours) to start.</b> A block reward only becomes spendable after <b>100 confirmations</b> (coinbase maturity) - a standard safeguard so the pool never pays out coins from a block that could still be reversed by a chain reorganization. Your earnings accrue immediately and are paid as soon as they mature and cross the minimum payout.</div>
 </div>

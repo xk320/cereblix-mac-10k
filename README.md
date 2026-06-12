@@ -7,6 +7,7 @@ proof-of-work algorithm.** No GPU, no ASIC - ever. One CPU, one vote.
 - 💼 Web wallet: https://cereblix.com/wallet/
 - 🚰 Free faucet: https://cereblix.com/faucet.html
 - ⛏️ Pool: `-node https://cereblix.com/pool/api`
+- 🇷🇺 RU/CIS relay node (no Cloudflare): `-node https://ru.cereblix.com/pool/api`
 - 📖 Full design: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 **Community:**
@@ -111,6 +112,15 @@ On the pool the miner logs `share accepted` - those are *shares* (proofs of work
 at an easier target), not full blocks; your real reward arrives as automatic pool
 payouts to your address. Each share is cryptographically bound to your address
 (per-miner extranonce), so no one can claim your work.
+
+**🇷🇺 RU / CIS:** if `cereblix.com` is slow or blocked for you (Cloudflare
+throttling), mine through our Moscow relay node instead - same chain, same pool,
+same payouts, just a direct route with no Cloudflare in the way:
+
+```sh
+cereblix-miner -addr crb1YOURADDRESS -node https://ru.cereblix.com/pool/api   # pool
+cereblix-miner -addr crb1YOURADDRESS -node https://ru.cereblix.com/api        # solo
+```
 
 ### Free faucet
 
