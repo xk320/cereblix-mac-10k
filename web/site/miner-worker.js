@@ -47,6 +47,9 @@ function loop() {
     if (r.err) { postMessage({ type: 'err', err: r.err }); mining = false; return; }
     if (r.found) {
       postMessage({ type: 'found', nonce: r.nonce, id: work.id });
+      // advance past the found nonce so we keep searching for more shares (pool
+      // mode) instead of re-finding and re-submitting the same one
+      nonce = (BigInt(r.nonce) + 1n).toString();
     } else {
       nonce = r.next;
       postMessage({ type: 'progress', hashed: r.hashed });

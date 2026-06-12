@@ -55,6 +55,12 @@ button.go.stop{background:linear-gradient(135deg,#f87171,#ef4444);color:#fff;box
 .log{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:var(--mut);background:#0b1120;border:1px solid var(--border);border-radius:11px;padding:10px 12px;height:120px;overflow:auto;margin-top:10px}
 .note{background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(34,211,238,.06));border:1px solid var(--border2);border-radius:12px;padding:12px 16px;font-size:13.5px;color:#cbd5e1;margin-top:14px}
 .ok{color:var(--ok)}.err{color:var(--err)}
+.modeseg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 14px}
+.modeseg button{background:var(--glass);border:1px solid var(--border);border-radius:12px;color:var(--mut);padding:11px 12px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;text-align:left;line-height:1.3;transition:border-color .15s,color .15s}
+.modeseg button small{display:block;font-weight:400;font-size:12px;color:var(--mut);margin-top:2px}
+.modeseg button.on{border-color:var(--acc);color:var(--txt);background:linear-gradient(135deg,rgba(34,211,238,.14),rgba(167,139,250,.08))}
+.modeseg button.on small{color:#cbd5e1}
+.modeseg button:disabled{opacity:.5;cursor:default}
 a{color:var(--acc)}
 </style>
 </head>
@@ -81,6 +87,11 @@ a{color:var(--acc)}
 <div class="sub" data-i="sub">No app, no install, no signing. Works on a phone (iOS &amp; Android), tablet or desktop - the NeuroMorph hasher runs as WebAssembly. Slow compared to the native miner, but truly runs anywhere.</div>
 
 <div class="card">
+  <label data-i="mode_l">Mining mode</label>
+  <div class="modeseg" id="modeseg">
+    <button data-mode="pool" onclick="setMode('pool')" data-i-html="mode_pool">Pool<small>steady rewards, best for browsers</small></button>
+    <button data-mode="solo" onclick="setMode('solo')" data-i-html="mode_solo">Solo<small>whole blocks, pure lottery</small></button>
+  </div>
   <label data-i="addr_l">Your CRB address (rewards go here)</label>
   <input id="addr" placeholder="crb1...">
   <label data-i="threads_l">Threads (each uses ~64 MiB RAM - keep low on phones)</label>
@@ -88,7 +99,7 @@ a{color:var(--acc)}
   <button class="go" id="btn" onclick="toggle()" data-i="start">Start mining</button>
   <div class="stats">
     <div class="stat"><b id="hr">0</b><span data-i="st_hr">H/s (your device)</span></div>
-    <div class="stat"><b id="found">0</b><span data-i="st_found">blocks found</span></div>
+    <div class="stat"><b id="found">0</b><span id="foundlbl" data-i="st_found">blocks found</span></div>
   </div>
   <div class="log" id="log"></div>
   <div class="note" data-i="note">Honest note: browser mining is for participation and fun, not earning - a phone does a few to a few dozen hashes per second. Your battery and CPU will be used while this tab is open. Keep the tab in the foreground; phones throttle background tabs.</div>
@@ -106,6 +117,8 @@ const I = {
     home:"Главная", mine:"Майнинг", pool:"Пул", explorer:"Обозреватель", wallet:"Кошелёк", faucet:"Кран", roadmap:"Дорожная карта",
     title:'Майнинг в <em>браузере</em>',
     sub:"Без приложения, установки и подписи. Работает на телефоне (iOS и Android), планшете или ПК - хэшер NeuroMorph выполняется как WebAssembly. Медленнее нативного майнера, зато запускается где угодно.",
+    mode_l:"Режим майнинга",
+    mode_pool:'Пул<small>стабильно, лучше для браузера</small>', mode_solo:'Соло<small>целые блоки, чистая лотерея</small>',
     addr_l:"Ваш адрес CRB (туда идут награды)", threads_l:"Потоки (каждый ~64 МиБ ОЗУ - на телефоне ставьте мало)",
     start:"Запустить майнинг", stop:"Остановить",
     st_hr:"H/s (ваше устройство)", st_found:"найдено блоков",
@@ -125,13 +138,31 @@ function applyLang(l){
   });
   document.querySelectorAll('.langsw button').forEach(b=>b.classList.toggle('on',b.dataset.lang===l));
   if(!running) document.getElementById('btn').textContent = t('start');
+  if(typeof updateFoundLabel==='function') updateFoundLabel();
 }
 function setLang(l){ localStorage.setItem('lang',l); applyLang(l); }
 const t = k => LANG==='en' ? (EN[k]??k) : (I.ru[k]??EN[k]??k);
 
-const API='api';
+// Two modes: pool (steady share rewards) and solo (whole blocks straight to the
+// node - a lottery). They only differ in the endpoint and, for the pool, an
+// extranonce that binds each share to your address.
+const BASES={pool:'pool/api', solo:'api'};
+let MODE=localStorage.getItem('mine_mode')||'pool';
+const api=()=>BASES[MODE];
 let workers=[], running=false, found=0, hashAccum=0, lastTs=0, curWork=null, pollTimer=null, hrTimer=null;
 const $=id=>document.getElementById(id);
+function updateFoundLabel(){
+  const el=$('foundlbl'); if(!el) return;
+  el.textContent = MODE==='pool'
+    ? (LANG==='ru'?'шар принято':'shares accepted')
+    : (LANG==='ru'?'найдено блоков':'blocks found');
+}
+function setMode(m){
+  if(running) return;                       // can't switch mid-mining
+  MODE=m; localStorage.setItem('mine_mode',m);
+  document.querySelectorAll('#modeseg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+  updateFoundLabel();
+}
 function log(msg,cls){ const el=$('log'); const d=document.createElement('div'); if(cls)d.className=cls; d.textContent='['+new Date().toLocaleTimeString()+'] '+msg; el.appendChild(d); el.scrollTop=el.scrollHeight; }
 
 // thread options. The ceiling is the CPU core count (more threads than cores
@@ -149,22 +180,24 @@ function log(msg,cls){ const el=$('log'); const d=document.createElement('div');
 })();
 
 async function getwork(addr){
-  const r = await fetch(API+'/getwork?addr='+addr+'&_='+Date.now(),{cache:'no-store'});
+  const r = await fetch(api()+'/getwork?addr='+addr+'&_='+Date.now(),{cache:'no-store'});
   const j = await r.json();
   if(j.error) throw new Error(j.error);
   return j;
 }
 async function submit(id,nonce){
-  const r = await fetch(API+'/submitwork',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,nonce:Number(nonce)})});
+  const r = await fetch(api()+'/submitwork',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,nonce:String(nonce)})});
   return r.json();
 }
 
 function dispatch(work){
   curWork = work;
-  const n = workers.length;
+  // Nonce layout: [extranonce:16][worker:bits 40+][counter]. In pool mode the
+  // extranonce (top 16 bits) is pinned so every share is bound to your address;
+  // solo mode uses extranonce 0. Each worker gets a disjoint 2^40 counter band.
+  const ex = BigInt(work.extranonce || 0);
   workers.forEach((w,i)=>{
-    // give each worker a disjoint nonce range (i * 2^40), safely below 2^53
-    const base = (i * 1099511627776).toString();
+    const base = ((ex << 48n) + (BigInt(i) << 40n)).toString();
     w.postMessage({type:'work', work:{id:work.id,header:work.header,target:work.target,seed:work.seed,height:work.height}, startNonce:base});
   });
 }
@@ -185,8 +218,16 @@ function onMsg(e){
   if(m.type==='progress'){ hashAccum += m.hashed; }
   else if(m.type==='found'){
     submit(m.id, m.nonce).then(res=>{
-      if(res.error){ log('share rejected: '+res.error,'err'); }
-      else { found++; $('found').textContent=found; log('BLOCK FOUND! '+(res.hash||'').slice(0,20)+'…','ok'); poll(); }
+      if(res.error){ log((MODE==='pool'?'share rejected: ':'rejected: ')+res.error,'err'); return; }
+      if(res.result==='stale'||res.result==='duplicate') return;     // transient, ignore
+      if(res.result==='share'){                                       // pool: a share
+        found++; $('found').textContent=found;
+        if(res.block){ log('★ your share also solved a BLOCK for the pool!','ok'); poll(); }
+        else log('share accepted (#'+found+')','ok');
+      } else {                                                        // solo: a real block
+        found++; $('found').textContent=found;
+        log('BLOCK FOUND! '+(res.hash||'').slice(0,20)+'…','ok'); poll();
+      }
     });
   }
   else if(m.type==='err'){ log('worker: '+m.err,'err'); }
@@ -202,7 +243,8 @@ async function start(){
   running=true; found=0; hashAccum=0; lastTs=Date.now();
   $('found').textContent='0';
   $('btn').textContent=t('stop'); $('btn').classList.add('stop');
-  log('loading WebAssembly hasher…');
+  document.querySelectorAll('#modeseg button').forEach(b=>b.disabled=true);
+  log((MODE==='pool'?'pool':'solo')+' mode · loading WebAssembly hasher…');
   workers=[];
   for(let i=0;i<n;i++){ const w=new Worker('miner-worker.js'); w.onmessage=onMsg; workers.push(w); }
   await poll();
@@ -220,10 +262,12 @@ function stop(){
   clearInterval(pollTimer); clearInterval(hrTimer);
   $('hr').textContent='0';
   $('btn').textContent=t('start'); $('btn').classList.remove('stop');
+  document.querySelectorAll('#modeseg button').forEach(b=>b.disabled=false);
   log('stopped');
 }
 
 applyLang(LANG);
+setMode(MODE);
 $('addr').value = localStorage.getItem('mine_addr') || localStorage.getItem('cereblix_addr') || '';
 </script>
 </body>

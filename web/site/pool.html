@@ -170,7 +170,7 @@ function renderStats(s){
   const fee=((+s.fee_permil||0)/10).toFixed(1);
   const tiles=[
     ['k_pool_hr', fmtHR(s.pool_hashrate)],
-    ['k_net_hr', NET&&NET.hashrate!=null? fmtHR(NET.hashrate):'—'],
+    ['k_net_hr', NET&&NET.hashrate!=null? fmtHR(Math.max(+NET.hashrate||0, +s.pool_hashrate||0)):'—'],
     ['k_blocks', String(s.blocks_found)],
     ['k_miners', String(s.active_miners)],
     ['k_fee', fee+'<small>%</small>'],
