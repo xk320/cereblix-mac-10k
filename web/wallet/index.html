@@ -151,7 +151,7 @@ const hex = b => Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
 const unhex = s => new Uint8Array(s.match(/.{2}/g).map(x=>parseInt(x,16)));
 
 const L = {
-  en:{nav_home:"Home",nav_mine:"Mine",nav_explorer:"Explorer",nav_wallet:"Wallet",about:"about",wallet:"Wallet",setup_p:"Keys are created and stored <b>only in your browser</b>. The server never sees your private key - transactions are signed locally (ed25519).",
+  en:{nav_home:"Home",nav_mine:"Mine",nav_pool:"Pool",nav_explorer:"Explorer",nav_wallet:"Wallet",nav_faucet:"Faucet",nav_roadmap:"Roadmap",about:"about",wallet:"Wallet",setup_p:"Keys are created and stored <b>only in your browser</b>. The server never sees your private key - transactions are signed locally (ed25519).",
     create:"Create new wallet",import:"Import key",import_ph:"Private key (128 hex chars)",import_btn:"Import",
     newkey_warn:"⚠️ Save your private key somewhere safe. It is the <b>only</b> way to recover your wallet. Lose the key - lose the coins.",
     saved_btn:"I saved the key - continue",balance:"Balance",your_addr:"Your address (click to copy):",show_key:"show private key",logout:"log out",
