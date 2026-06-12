@@ -314,7 +314,9 @@ A faucet that lets newcomers try the wallet without mining first. Its anti-bot
 captcha is **a real NeuroMorph share**: the browser mines one share (via the
 WebAssembly hasher) against a template paying a dedicated **captcha wallet** - so the
 "captcha" is genuine work in the coin's own algorithm (a bot must actually mine),
-and occasionally a share is also a full block. The faucet then sends a tiered
+and occasionally a share is also a full block. Each solved captcha also credits the
+captcha wallet **one pool share**, so it earns a steady slice of pool blocks rather
+than relying on rare jackpots. The faucet then sends a tiered
 amount, rate-limited per address and per IP (real client IP taken from the last
 `X-Forwarded-For` hop, so the limit can't be header-spoofed).
 
