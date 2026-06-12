@@ -149,7 +149,12 @@ th{color:var(--mut);font-weight:600}
 .faq details{background:var(--glass);border:1px solid var(--border);border-radius:14px;padding:15px 18px;margin-bottom:10px;backdrop-filter:blur(8px)}
 .faq summary{cursor:pointer;font-weight:600;font-family:var(--fd)}
 .faq p{color:var(--mut);margin-top:10px;font-size:15px}
-footer{padding:40px 0;color:var(--mut);font-size:14px;border-top:1px solid var(--border);margin-top:34px}
+footer{padding:40px 18px;color:var(--mut);font-size:14px;border-top:1px solid var(--border);margin-top:34px;text-align:center}
+footer .social{display:flex;gap:10px 22px;justify-content:center;flex-wrap:wrap;margin:0 auto 18px;max-width:560px;font-weight:600}
+footer .social a{color:var(--acc);text-decoration:none}
+footer .social a:hover{text-decoration:underline}
+footer .foot-line{margin:0 auto 6px;max-width:640px;line-height:1.6}
+footer .foot-sub{margin:0 auto;max-width:640px;line-height:1.6;opacity:.75}
 .warn{background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(34,211,238,.06));border:1px solid var(--border2);border-radius:14px;padding:14px 18px;font-size:14.5px;color:#cbd5e1;margin-top:18px;backdrop-filter:blur(6px)}
 /* DNA double helix - the "-lix" (helix) in Cereblix, the self-mutating chain */
 .dna{display:flex;justify-content:center;align-items:center;gap:7px;height:64px;margin:26px 0 8px;overflow:hidden}
@@ -504,17 +509,16 @@ cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
 </section>
 
 <footer>
-  <div class="social" style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:0 0 14px;font-weight:600">
-    <a href="https://t.me/cereblix" target="_blank" rel="noopener" style="color:var(--acc)">Telegram</a>
-    <a href="https://x.com/Cereblix" target="_blank" rel="noopener" style="color:var(--acc)">X / Twitter</a>
-    <a href="https://bitcointalk.org/index.php?topic=5585629.0" target="_blank" rel="noopener" style="color:var(--acc)">Bitcointalk</a>
-    <a href="https://www.altcoinstalks.com/index.php?topic=344237.0" target="_blank" rel="noopener" style="color:var(--acc)">Altcoinstalks</a>
-    <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener" style="color:var(--acc)">GitHub</a>
+  <div class="social">
+    <a href="https://t.me/cereblix" target="_blank" rel="noopener">Telegram</a>
+    <a href="https://x.com/Cereblix" target="_blank" rel="noopener">X / Twitter</a>
+    <a href="https://bitcointalk.org/index.php?topic=5585629.0" target="_blank" rel="noopener">Bitcointalk</a>
+    <a href="https://www.altcoinstalks.com/index.php?topic=344237.0" target="_blank" rel="noopener">Altcoinstalks</a>
+    <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">GitHub</a>
+    <a href="wallet/" data-i="nav_wallet">Wallet</a>
   </div>
-  <span data-i-html="footer1">Cereblix · launched 11 June 2026 · no premine, no fund · open source ·</span>
-  <a href="wallet/" style="color:var(--acc)" data-i="nav_wallet">wallet</a> ·
-  <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener" style="color:var(--acc)">GitHub</a><br>
-  <span data-i="footer2">A free, open-source project - mine it, fork it, run your own node.</span>
+  <div class="foot-line" data-i-html="footer1">Cereblix · launched 11 June 2026 · no premine, no fund · open source</div>
+  <div class="foot-sub" data-i="footer2">A free, open-source project - mine it, fork it, run your own node.</div>
 </footer>
 </div>
 
@@ -626,7 +630,7 @@ const I18N = {
     faq4_a:"Нет. Кодовая база написана с нуля на Go (ядро + нода + майнер ~2500 строк, ноль внешних зависимостей). NeuroMorph концептуально развивает идею случайных программ RandomX, но добавляет главное: эпохальную мутацию самой семантики VM. RandomX зафиксирован навечно - NeuroMorph не фиксирован в принципе.",
     faq5_q:"Как поддержать сеть?",
     faq5_a:'Майните (даже 1-2 потока - вклад в безопасность), держите ноду, зеркальте исходники. Код открыт: <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener">github.com/Cerebra-CBR/cereblix</a>.',
-    footer1:"Cereblix · запущена 11 июня 2026 · без премайна, без фонда · открытый код ·",
+    footer1:"Cereblix · запущена 11 июня 2026 · без премайна, без фонда · открытый код",
     footer2:"Бесплатный открытый опенсорсный проект - майнь, форкай, поднимай свою ноду.",
     name_cere_t:"cereb - от cerebrum (мозг) 🧠",
     name_cere_b:"Думает твой процессор: NeuroMorph гоняет на CPU мозгоподобные случайные программы. Нейроны, синапсы, «мозговые» вычисления - вся суть монеты.",
