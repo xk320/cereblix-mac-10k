@@ -619,10 +619,10 @@ func (n *Node) RPCHandler() http.Handler {
 		tip := n.Chain.Tip()
 		tgt, _ := tip.TargetInt()
 		diff := core.WorkOf(tgt)
-		// Network hashrate estimate over a short recent window (~8 blocks) so it
-		// reacts quickly when miners join or leave. The window is the time
-		// actually elapsed, including the gap since the last block, so a sudden
-		// drop in mining is reflected within a block or two rather than 20.
+		// Network hashrate estimate = work over a short recent window (~8 blocks)
+		// divided by the time those blocks took. Short window so it tracks miners
+		// joining/leaving; a genuine multi-minute stall (handled below) still pulls
+		// it down, but ordinary per-block timing variance does not.
 		var hashrate float64
 		hgt := n.Chain.Height()
 		now := uint64(time.Now().Unix())
@@ -638,10 +638,12 @@ func (n *Node) RPCHandler() http.Handler {
 				t, _ := n.Chain.BlockAt(i).TargetInt()
 				work.Add(work, core.WorkOf(t))
 			}
-			// Elapsed time = window span, but never less than time since the
-			// last block (an overdue block drags the estimate down in real time).
+			// Elapsed time = span of the window. Only a GENUINE stall (no block for
+			// several minutes) folds the gap in - ordinary per-block variance must
+			// not be allowed to drag the estimate, or a single slow block makes the
+			// rate look like it crashed (the source of the confusing under-reads).
 			dt := float64(tip.Time) - float64(first.Time)
-			if sinceTip := float64(now) - float64(tip.Time); sinceTip > dt {
+			if sinceTip := float64(now) - float64(tip.Time); sinceTip > 300 && sinceTip > dt {
 				dt = sinceTip
 			}
 			if dt < 1 {
