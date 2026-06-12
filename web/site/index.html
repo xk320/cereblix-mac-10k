@@ -77,6 +77,11 @@ nav .links a.active{color:var(--acc)}
 .cta-row{display:flex;gap:12px}
 .cta-row .btn{flex:1 1 0;padding:14px;font-size:15px;text-align:center}
 .tg-btn.full{width:100%}
+.social-row{display:flex;gap:8px;width:100%}
+.soc{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 3px;border:1px solid var(--border);border-radius:12px;background:var(--glass);color:var(--mut);text-decoration:none;font-size:10.5px;font-weight:600;transition:border-color .15s,color .15s,transform .15s}
+.soc:hover{border-color:var(--acc);color:var(--acc);transform:translateY(-2px)}
+.soc svg{width:21px;height:21px;fill:currentColor;flex:0 0 auto}
+.soc span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 /* ---- hero ---- */
 .hero{position:relative;padding:74px 0 34px;text-align:center}
 .hero-logo{display:flex;justify-content:center;margin-bottom:22px}
@@ -244,6 +249,24 @@ footer{padding:40px 0;color:var(--mut);font-size:14px;border-top:1px solid var(-
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
       <span data-i="tg_join">Join our Telegram</span>
     </a>
+    <div class="social-row">
+      <a href="https://x.com/Cereblix" target="_blank" rel="noopener" title="X / Twitter" class="soc">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>X</span>
+      </a>
+      <a href="https://github.com/Cerebra-CBR/cereblix" target="_blank" rel="noopener" title="GitHub" class="soc">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.78 0 12.29c0 5.2 3.44 9.6 8.21 11.16.6.11.82-.25.82-.56v-2.17c-3.34.7-4.04-1.42-4.04-1.42-.55-1.37-1.34-1.74-1.34-1.74-1.08-.72.08-.71.08-.71 1.2.08 1.83 1.21 1.83 1.21 1.07 1.78 2.81 1.27 3.5.97.1-.76.42-1.27.76-1.56-2.67-.3-5.47-1.31-5.47-5.83 0-1.29.47-2.34 1.24-3.17-.12-.3-.54-1.52.12-3.16 0 0 1.01-.32 3.3 1.21a11.6 11.6 0 0 1 6 0c2.28-1.53 3.29-1.21 3.29-1.21.66 1.64.24 2.86.12 3.16.77.83 1.23 1.88 1.23 3.17 0 4.53-2.8 5.53-5.48 5.82.43.36.81 1.08.81 2.18v3.23c0 .31.21.68.82.56A12.01 12.01 0 0 0 24 12.29C24 5.78 18.63.5 12 .5z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a href="https://bitcointalk.org/index.php?topic=5585629.0" target="_blank" rel="noopener" title="Bitcointalk" class="soc">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM7 9h10v2H7zm0 4h7v2H7z"/></svg>
+        <span>Bitcointalk</span>
+      </a>
+      <a href="https://www.altcoinstalks.com/index.php?topic=344237.0" target="_blank" rel="noopener" title="Altcoinstalks" class="soc">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM7 9h10v2H7zm0 4h7v2H7z"/></svg>
+        <span>Altcoinstalks</span>
+      </a>
+    </div>
   </div>
   <div class="stats" id="stats">
     <div class="stat"><b id="s-height">…</b><span data-i="st_height">block height</span></div>
