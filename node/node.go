@@ -46,6 +46,9 @@ type Node struct {
 	tmplMu    sync.Mutex
 	templates map[string]*core.Block // template id -> unmined block
 
+	cpMu       sync.Mutex
+	checkpoint core.Checkpoint // latest signed authority checkpoint we hold/serve
+
 	hashCount atomic.Uint64 // built-in miner counter
 	stop      chan struct{}
 }
@@ -234,6 +237,7 @@ func (n *Node) SyncLoop() {
 		}
 		for _, p := range n.peerList() {
 			n.syncWithPeer(p)
+			n.fetchCheckpoint(p)
 		}
 		n.savePeers()
 		n.discoverPeers()
@@ -314,6 +318,26 @@ func (n *Node) syncWithPeer(peer string) {
 		}
 	}
 	log.Printf("sync: now at height %d", n.Chain.Height())
+}
+
+// fetchCheckpoint pulls a peer's authority checkpoint, verifies its signature
+// against the hardcoded authority key, and enforces it if it matches our chain.
+func (n *Node) fetchCheckpoint(peer string) {
+	var cp core.Checkpoint
+	if err := n.getJSON(peer+"/p2p/checkpoint", &cp); err != nil {
+		return
+	}
+	if !cp.Verify() {
+		return
+	}
+	if n.Chain.ApplyCheckpoint(cp) {
+		n.cpMu.Lock()
+		if cp.Height >= n.checkpoint.Height {
+			n.checkpoint = cp
+		}
+		n.cpMu.Unlock()
+		log.Printf("checkpoint: enforcing authority checkpoint at height %d", cp.Height)
+	}
 }
 
 func (n *Node) discoverPeers() {
@@ -476,6 +500,19 @@ func (n *Node) P2PHandler() http.Handler {
 		reg(w, r)
 		writeJSON(w, n.peerList())
 	})
+	// Serve the latest authority checkpoint so peers can pull and enforce it.
+	// Receivers verify the signature against the hardcoded authority key, so a
+	// relaying peer cannot forge one.
+	mux.HandleFunc("/p2p/checkpoint", func(w http.ResponseWriter, r *http.Request) {
+		n.cpMu.Lock()
+		cp := n.checkpoint
+		n.cpMu.Unlock()
+		if cp.Hash == "" {
+			writeErr(w, 404, "no checkpoint")
+			return
+		}
+		writeJSON(w, cp)
+	})
 	return mux
 }
 
@@ -582,7 +619,8 @@ func (n *Node) RPCHandler() http.Handler {
 			return
 		}
 		acc := n.Chain.Account(addr)
-		writeJSON(w, map[string]any{"address": addr, "balance": acc.Balance, "nonce": acc.Nonce})
+		writeJSON(w, map[string]any{"address": addr, "balance": acc.Balance, "nonce": acc.Nonce,
+			"spendable": n.Chain.SpendableBalance(addr)})
 	})
 
 	h("/api/history", func(w http.ResponseWriter, r *http.Request) {
@@ -792,6 +830,34 @@ func (n *Node) RPCHandler() http.Handler {
 			"max_supply":       uint64(core.InitialReward) * core.HalvingInterval * 2,
 			"algo":             "NeuroMorph v1",
 		})
+	})
+
+	// /api/checkpoint: POST (localhost, from the authority signing tool) pushes a
+	// signed checkpoint; GET returns the one we currently hold.
+	h("/api/checkpoint", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			var cp core.Checkpoint
+			if err := json.NewDecoder(r.Body).Decode(&cp); err != nil {
+				writeErr(w, 400, "bad json")
+				return
+			}
+			if !cp.Verify() {
+				writeErr(w, 400, "bad checkpoint signature")
+				return
+			}
+			n.Chain.ApplyCheckpoint(cp)
+			n.cpMu.Lock()
+			if cp.Height >= n.checkpoint.Height {
+				n.checkpoint = cp
+			}
+			n.cpMu.Unlock()
+			writeJSON(w, map[string]any{"result": "accepted", "height": cp.Height})
+			return
+		}
+		n.cpMu.Lock()
+		cp := n.checkpoint
+		n.cpMu.Unlock()
+		writeJSON(w, cp)
 	})
 
 	return mux

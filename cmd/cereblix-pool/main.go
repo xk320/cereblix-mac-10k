@@ -286,29 +286,46 @@ func onBlockFound(height uint64) {
 func payoutLoop() {
 	for {
 		time.Sleep(60 * time.Second)
+		// Only matured coinbase is spendable; pay out of that and pay PARTIAL if
+		// owed exceeds it (the rest follows as more blocks mature).
+		var bal struct {
+			Spendable uint64 `json:"spendable"`
+		}
+		if err := nodeGet("/balance?addr="+poolAddr, &bal); err != nil {
+			continue
+		}
+		avail := bal.Spendable
 		st.mu.Lock()
 		var due []string
 		for m, owed := range st.Owed {
-			if owed >= minPayout {
+			if owed >= minPayout && m != poolAddr {
 				due = append(due, m)
 			}
 		}
 		st.mu.Unlock()
 		for _, m := range due {
-			st.mu.Lock()
-			amt := st.Owed[m]
-			st.mu.Unlock()
-			txid, err := send(m, amt)
-			if err != nil {
-				log.Printf("pool: payout to %s failed: %v", m[:12], err)
-				continue
+			if avail < minPayout {
+				break
 			}
 			st.mu.Lock()
-			st.Owed[m] = 0
-			st.Paid[m] += amt
+			owed := st.Owed[m]
+			st.mu.Unlock()
+			pay := owed
+			if pay > avail {
+				pay = avail
+			}
+			txid, err := send(m, pay)
+			if err != nil {
+				log.Printf("pool: payout to %s deferred: %v", m[:12], err)
+				continue
+			}
+			avail -= pay
+			st.mu.Lock()
+			st.Owed[m] -= pay
+			st.Paid[m] += pay
 			st.mu.Unlock()
 			st.save()
-			log.Printf("pool: paid %s -> %s (%s)", crb(amt), m[:12], txid[:12])
+			log.Printf("pool: paid %s -> %s (%s)", crb(pay), m[:12], txid[:12])
 		}
 	}
 }

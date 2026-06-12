@@ -83,6 +83,7 @@ func NewChain(dir string) (*Chain, error) {
 	if err := c.load(); err != nil {
 		return nil, err
 	}
+	c.loadCheckpoints()
 	return c, nil
 }
 
@@ -343,6 +344,9 @@ func (c *Chain) validateBlock(prefix []*Block, st State, b *Block) error {
 	}
 	if b.Height != uint64(len(prefix)) {
 		return fmt.Errorf("bad height %d, want %d", b.Height, len(prefix))
+	}
+	if cp, ok := c.Checkpoints[b.Height]; ok && cp != b.Hash() {
+		return fmt.Errorf("block %d conflicts with authority checkpoint", b.Height)
 	}
 	if b.PrevHash != prev.Hash() {
 		return errors.New("prev hash mismatch")
@@ -623,6 +627,59 @@ func (c *Chain) MinedBlocks(addr string) int {
 	return n
 }
 
+// ------------------------------------------------------------- checkpoints
+
+func (c *Chain) checkpointsFile() string { return filepath.Join(c.dir, "checkpoints.json") }
+
+func (c *Chain) loadCheckpoints() {
+	raw, err := os.ReadFile(c.checkpointsFile())
+	if err != nil {
+		return
+	}
+	var m map[uint64]string
+	if json.Unmarshal(raw, &m) == nil && m != nil {
+		c.Checkpoints = m
+	}
+}
+
+func (c *Chain) saveCheckpoints() {
+	raw, _ := json.Marshal(c.Checkpoints)
+	_ = os.WriteFile(c.checkpointsFile(), raw, 0o644)
+}
+
+// ApplyCheckpoint records a verified authority checkpoint if it matches our own
+// chain at that height. Returns false if we don't have that height yet or our
+// block there conflicts (we are on a different chain).
+func (c *Chain) ApplyCheckpoint(cp Checkpoint) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cp.Height == 0 || cp.Height >= uint64(len(c.blocks)) {
+		return false
+	}
+	if c.blocks[cp.Height].Hash() != cp.Hash {
+		return false
+	}
+	if c.Checkpoints[cp.Height] == cp.Hash {
+		return true
+	}
+	c.Checkpoints[cp.Height] = cp.Hash
+	c.saveCheckpoints()
+	return true
+}
+
+// HighestCheckpointHeight returns the greatest checkpointed height (0 if none).
+func (c *Chain) HighestCheckpointHeight() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var mx uint64
+	for h := range c.Checkpoints {
+		if h > mx {
+			mx = h
+		}
+	}
+	return mx
+}
+
 // --------------------------------------------------------------- building
 
 // BuildTemplate assembles an unmined block paying to `coinbase`.
@@ -739,6 +796,19 @@ func (c *Chain) Account(addr string) Account {
 		return *a
 	}
 	return Account{}
+}
+
+// SpendableBalance is the matured balance: total minus coinbase rewards that
+// have not yet reached CoinbaseMaturity (and so cannot be spent).
+func (c *Chain) SpendableBalance(addr string) uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var bal uint64
+	if a := c.state[addr]; a != nil {
+		bal = a.Balance
+	}
+	imm := immatureCoinbase(c.blocks, uint64(len(c.blocks)))
+	return spendable(bal, imm[addr])
 }
 
 func (c *Chain) MempoolTxs() []*Tx {
