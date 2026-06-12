@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"cereblix/core"
@@ -59,7 +60,7 @@ func New(chain *core.Chain, dataDir, publicURL string, seedPeers []string) *Node
 		dataDir:   dataDir,
 		publicURL: strings.TrimRight(publicURL, "/"),
 		peers:     map[string]time.Time{},
-		client:    &http.Client{Timeout: 20 * time.Second},
+		client:    safePeerClient(),
 		templates: map[string]*core.Block{},
 		stop:      make(chan struct{}),
 	}
@@ -114,6 +115,43 @@ func (n *Node) addPeer(peerURL string) {
 		n.peers[peerURL] = time.Time{}
 	}
 	n.peersMu.Unlock()
+}
+
+// safePeerClient builds the HTTP client used for ALL outbound peer requests. Its
+// dialer re-checks the *resolved* IP at connect time and refuses to connect to
+// loopback/private/link-local/unspecified addresses. This is the authoritative
+// SSRF defense: peerHostAllowed only screens IP-literal URLs, so a hostname that
+// resolves (or DNS-rebinds) to 169.254.169.254 / 127.0.0.1 / RFC1918 would slip
+// past it — but the dial Control hook here blocks the actual connection.
+func safePeerClient() *http.Client {
+	dialer := &net.Dialer{
+		Timeout: 10 * time.Second,
+		Control: func(network, address string, _ syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return fmt.Errorf("refusing dial to unresolved address %q", address)
+			}
+			if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+				ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+				return fmt.Errorf("refusing dial to non-public address %s", ip)
+			}
+			return nil
+		},
+	}
+	return &http.Client{
+		Timeout: 20 * time.Second,
+		Transport: &http.Transport{
+			DialContext:           dialer.DialContext,
+			MaxIdleConns:          64,
+			IdleConnTimeout:       60 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 2 * time.Second,
+		},
+	}
 }
 
 // peerHostAllowed rejects URLs whose host is a loopback/private/link-local IP
@@ -386,8 +424,31 @@ type tokenBucket struct {
 	last   time.Time
 }
 
+// rlMaxBuckets caps the limiter's memory footprint.
+const rlMaxBuckets = 8192
+
 func newRateLimiter(rate, burst float64) *rateLimiter {
 	return &rateLimiter{b: map[string]*tokenBucket{}, rate: rate, burst: burst}
+}
+
+// gcLocked frees memory while preserving active throttle state. It first drops
+// buckets that have fully refilled (idle — recreating one later yields the same
+// full burst, so no limit is lost). If still over cap (a genuine large-scale
+// distinct-IP flood), it trims arbitrary entries down to the cap. Unlike the
+// previous full-map wipe, honest peers currently being throttled keep their
+// depleted buckets. Caller must hold rl.mu.
+func (rl *rateLimiter) gcLocked(now time.Time) {
+	for ip, tb := range rl.b {
+		if tb.tokens+now.Sub(tb.last).Seconds()*rl.rate >= rl.burst {
+			delete(rl.b, ip)
+		}
+	}
+	for ip := range rl.b {
+		if len(rl.b) <= rlMaxBuckets {
+			break
+		}
+		delete(rl.b, ip)
+	}
 }
 
 func (rl *rateLimiter) allow(ip string) bool {
@@ -396,9 +457,11 @@ func (rl *rateLimiter) allow(ip string) bool {
 	now := time.Now()
 	tb := rl.b[ip]
 	if tb == nil {
-		// Bound memory: a flood of spoofed-source IPs can't grow this forever.
-		if len(rl.b) > 8192 {
-			rl.b = map[string]*tokenBucket{}
+		// Bound memory without throwing away active throttle state: a flood of
+		// spoofed-source IPs must not reset everyone's bucket to full burst (the
+		// old full-map wipe did exactly that). Evict idle/expired buckets first.
+		if len(rl.b) >= rlMaxBuckets {
+			rl.gcLocked(now)
 		}
 		tb = &tokenBucket{tokens: rl.burst, last: now}
 		rl.b[ip] = tb
@@ -619,8 +682,10 @@ func (n *Node) RPCHandler() http.Handler {
 			return
 		}
 		acc := n.Chain.Account(addr)
+		recv, mined, sent, txn := n.Chain.AddrTotals(addr)
 		writeJSON(w, map[string]any{"address": addr, "balance": acc.Balance, "nonce": acc.Nonce,
-			"spendable": n.Chain.SpendableBalance(addr)})
+			"spendable": n.Chain.SpendableBalance(addr),
+			"received":  recv, "mined": mined, "sent": sent, "txn": txn})
 	})
 
 	h("/api/history", func(w http.ResponseWriter, r *http.Request) {
@@ -836,6 +901,14 @@ func (n *Node) RPCHandler() http.Handler {
 	// signed checkpoint; GET returns the one we currently hold.
 	h("/api/checkpoint", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
+			// Defense in depth: only the local authority signing tool may POST
+			// here. The signature check below already makes forgery impossible,
+			// but enforcing loopback means even a misconfigured Apache that
+			// proxied this path can't let a remote caller reach it.
+			if ip := net.ParseIP(clientIP(r)); ip == nil || !ip.IsLoopback() {
+				writeErr(w, 403, "checkpoint POST is localhost-only")
+				return
+			}
 			var cp core.Checkpoint
 			if err := json.NewDecoder(r.Body).Decode(&cp); err != nil {
 				writeErr(w, 400, "bad json")

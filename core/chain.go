@@ -40,6 +40,11 @@ type Chain struct {
 	state   State
 	cumWork *big.Int
 
+	// totals is a running per-address lifetime ledger (received/mined/sent/txn)
+	// kept in sync with state so /api/balance answers in O(1) instead of an
+	// O(chain) full scan on every request (which was a DoS amplification vector).
+	totals map[string]*addrTotals
+
 	mempool     map[string]*Tx
 	verifiedPow map[string]bool
 
@@ -69,6 +74,7 @@ func NewChain(dir string) (*Chain, error) {
 	c := &Chain{
 		dir:         dir,
 		state:       State{},
+		totals:      map[string]*addrTotals{},
 		cumWork:     new(big.Int),
 		mempool:     map[string]*Tx{},
 		verifiedPow: map[string]bool{},
@@ -161,13 +167,16 @@ func (c *Chain) appendToDisk(b *Block) error {
 // rebuildDerived recomputes state and cumulative work from c.blocks.
 func (c *Chain) rebuildDerived() {
 	st := State{}
+	tot := map[string]*addrTotals{}
 	work := new(big.Int)
 	for _, b := range c.blocks {
 		applyBlockToState(st, b)
+		applyBlockToTotals(tot, b)
 		t, _ := b.TargetInt()
 		work.Add(work, WorkOf(t))
 	}
 	c.state = st
+	c.totals = tot
 	c.cumWork = work
 }
 
@@ -235,6 +244,45 @@ func applyBlockToState(st State, b *Block) {
 		acc.Balance -= t.Amount + t.Fee
 		acc.Nonce++
 		st.get(t.To).Balance += t.Amount
+	}
+}
+
+// addrTotals is a running lifetime ledger for one address.
+type addrTotals struct {
+	Received uint64
+	Mined    uint64
+	Sent     uint64
+	Txn      int
+}
+
+// applyBlockToTotals folds one block's transactions into the running totals map,
+// mirroring the per-tx accounting AddrTotals used to compute by full scan.
+func applyBlockToTotals(tot map[string]*addrTotals, b *Block) {
+	get := func(a string) *addrTotals {
+		t := tot[a]
+		if t == nil {
+			t = &addrTotals{}
+			tot[a] = t
+		}
+		return t
+	}
+	for _, t := range b.Txs {
+		if t.IsCoinbase() {
+			to := get(t.To)
+			to.Received += t.Amount
+			to.Mined += t.Amount
+			to.Txn++
+			continue
+		}
+		from, _ := t.FromAddr()
+		f := get(from)
+		f.Sent += t.Amount + t.Fee
+		f.Txn++
+		if t.To != from {
+			to := get(t.To)
+			to.Received += t.Amount
+			to.Txn++
+		}
 	}
 }
 
@@ -442,6 +490,7 @@ func (c *Chain) AddBlock(b *Block) error {
 	}
 	c.blocks = append(c.blocks, b)
 	applyBlockToState(c.state, b)
+	applyBlockToTotals(c.totals, b)
 	t, _ := b.TargetInt()
 	c.cumWork.Add(c.cumWork, WorkOf(t))
 	for _, tx := range b.Txs {
@@ -490,9 +539,11 @@ func (c *Chain) TryAdoptChain(startHeight uint64, newBlocks []*Block) error {
 
 	// Replay state up to the fork point.
 	st := State{}
+	tot := map[string]*addrTotals{}
 	work := new(big.Int)
 	for _, b := range candidate {
 		applyBlockToState(st, b)
+		applyBlockToTotals(tot, b)
 		t, _ := b.TargetInt()
 		work.Add(work, WorkOf(t))
 	}
@@ -502,6 +553,7 @@ func (c *Chain) TryAdoptChain(startHeight uint64, newBlocks []*Block) error {
 		}
 		candidate = append(candidate, b)
 		applyBlockToState(st, b)
+		applyBlockToTotals(tot, b)
 		t, _ := b.TargetInt()
 		work.Add(work, WorkOf(t))
 	}
@@ -519,6 +571,7 @@ func (c *Chain) TryAdoptChain(startHeight uint64, newBlocks []*Block) error {
 	}
 	c.blocks = candidate
 	c.state = st
+	c.totals = tot
 	c.cumWork = work
 	c.vmCache = map[uint64]*nm.VM{}
 	c.paramsCache = map[uint64]*nm.Params{}
@@ -625,6 +678,19 @@ func (c *Chain) MinedBlocks(addr string) int {
 		}
 	}
 	return n
+}
+
+// AddrTotals scans the whole chain and returns lifetime totals for an address:
+// total received, total mined (coinbase received), total sent (amount+fee), and
+// the count of transactions touching the address. Unlike the 200-tx history
+// window these are exact, so the explorer's "received/mined/sent" never undercount.
+func (c *Chain) AddrTotals(addr string) (received, mined, sent uint64, txn int) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if t := c.totals[addr]; t != nil {
+		return t.Received, t.Mined, t.Sent, t.Txn
+	}
+	return 0, 0, 0, 0
 }
 
 // ------------------------------------------------------------- checkpoints

@@ -110,6 +110,55 @@ func (s *limitStore) record(addr, ip string, now int64) {
 	s.save()
 }
 
+// reserve atomically checks the cooldown and, if free, records the claim under a
+// single lock. It returns left>0 (and records nothing) if the addr or IP is still
+// cooling down. This closes the check-then-send-then-record race where N
+// concurrent claims could all pass an independent remaining() check and each
+// trigger a payout, draining the treasury by N× per window.
+func (s *limitStore) reserve(addr, ip string, now int64) time.Duration {
+	s.mu.Lock()
+	cut := now - int64(cooldown.Seconds())
+	for k, v := range s.Addr {
+		if v < cut {
+			delete(s.Addr, k)
+		}
+	}
+	for k, v := range s.IP {
+		if v < cut {
+			delete(s.IP, k)
+		}
+	}
+	var last int64
+	if v, ok := s.Addr[addr]; ok && v > last {
+		last = v
+	}
+	if v, ok := s.IP[ip]; ok && v > last {
+		last = v
+	}
+	if last != 0 {
+		if left := time.Duration(last+int64(cooldown.Seconds())-now) * time.Second; left > 0 {
+			s.mu.Unlock()
+			return left
+		}
+	}
+	// free -> claim the slot immediately so concurrent requests see it taken
+	s.Addr[addr] = now
+	s.IP[ip] = now
+	s.mu.Unlock()
+	s.save()
+	return 0
+}
+
+// release rolls back a reservation when the payout failed, so a transient send
+// error does not lock the user out for the whole cooldown.
+func (s *limitStore) release(addr, ip string) {
+	s.mu.Lock()
+	delete(s.Addr, addr)
+	delete(s.IP, ip)
+	s.mu.Unlock()
+	s.save()
+}
+
 // --------------------------------------------------- NeuroMorph share captcha
 
 type fwork struct {
@@ -291,7 +340,7 @@ func main() {
 	base := flag.Float64("base", 0.001, "CRB for addresses that mined 0 blocks")
 	miner := flag.Float64("miner", 0.01, "CRB for addresses that mined >=1 block")
 	whale := flag.Float64("whale", 0.1, "CRB for addresses that mined >100 blocks")
-	work := flag.Uint64("work", 160, "captcha share difficulty in expected hashes (browser NeuroMorph)")
+	work := flag.Uint64("work", 800, "captcha share difficulty in expected hashes (browser NeuroMorph)")
 	captcha := flag.String("captcha-addr", "", "address the captcha share mines to (defaults to payout wallet)")
 	datadir := flag.String("datadir", "/var/lib/cerebra", "where to store rate-limit state")
 	flag.Parse()
@@ -412,17 +461,20 @@ func main() {
 		}
 		ip := clientIP(r)
 		now := time.Now().Unix()
-		if left := store.remaining(req.Addr, ip, now); left > 0 {
+		// Atomically claim the cooldown slot BEFORE sending. Concurrent requests
+		// for the same addr/IP now serialize: only the first reserves, the rest
+		// get 429. Roll back if the payout itself fails.
+		if left := store.reserve(req.Addr, ip, now); left > 0 {
 			writeJSON(w, 429, map[string]string{"error": fmt.Sprintf("already claimed - try again in %dh %dm", int(left.Hours()), int(left.Minutes())%60)})
 			return
 		}
 		amt, mined := amountFor(req.Addr)
 		txid, err := sendCRB(req.Addr, amt)
 		if err != nil {
+			store.release(req.Addr, ip)
 			writeJSON(w, 400, map[string]string{"error": err.Error()})
 			return
 		}
-		store.record(req.Addr, ip, now)
 		writeJSON(w, 200, map[string]any{"result": "sent", "txid": txid,
 			"amount": float64(amt) / float64(core.CoinUnit), "mined": mined})
 	})
