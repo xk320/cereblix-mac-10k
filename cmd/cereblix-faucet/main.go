@@ -41,6 +41,9 @@ var (
 	sendMu                      sync.Mutex
 	nextNonce                   uint64
 	store                       *limitStore
+	poolAPI                     string  // if set, each solved captcha credits a pool share to captchaAddr
+	creditSecret                string  // shared secret for the pool's /api/credit
+	creditShares                float64 // share weight credited per solved captcha
 )
 
 // ----------------------------------------------------------- rate-limit store
@@ -333,6 +336,21 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// creditPoolShare tells the pool (over localhost) to credit the captcha wallet a
+// share. Best-effort: a failure never blocks the user's faucet claim.
+func creditPoolShare(addr string, shares float64) {
+	c := &http.Client{Timeout: 6 * time.Second}
+	u := fmt.Sprintf("%s/credit?addr=%s&shares=%g", poolAPI, addr, shares)
+	req, err := http.NewRequest("POST", u, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("X-Credit-Secret", creditSecret)
+	if resp, err := c.Do(req); err == nil {
+		resp.Body.Close()
+	}
+}
+
 func main() {
 	listen := flag.String("listen", "127.0.0.1:18753", "listen address")
 	flag.StringVar(&nodeAPI, "node", "http://127.0.0.1:18751/api", "node API base")
@@ -343,7 +361,18 @@ func main() {
 	work := flag.Uint64("work", 800, "captcha share difficulty in expected hashes (browser NeuroMorph)")
 	captcha := flag.String("captcha-addr", "", "address the captcha share mines to (defaults to payout wallet)")
 	datadir := flag.String("datadir", "/var/lib/cerebra", "where to store rate-limit state")
+	pool := flag.String("pool", "", "pool API base; if set, each solved captcha credits a pool share to the captcha wallet")
+	creditSecretFile := flag.String("credit-secret-file", "", "file with the shared secret for the pool's /api/credit")
+	creditW := flag.Float64("credit-shares", 1.0, "share weight credited to the captcha wallet per solved captcha")
 	flag.Parse()
+
+	poolAPI = strings.TrimRight(*pool, "/")
+	creditShares = *creditW
+	if *creditSecretFile != "" {
+		if b, err := os.ReadFile(*creditSecretFile); err == nil {
+			creditSecret = strings.TrimSpace(string(b))
+		}
+	}
 
 	amtBase = uint64(*base * float64(core.CoinUnit))
 	amtMiner = uint64(*miner * float64(core.CoinUnit))
@@ -458,6 +487,11 @@ func main() {
 				resp.Body.Close()
 				log.Printf("faucet: share also solved BLOCK %d -> treasury", fw.height)
 			}
+		}
+		// Route the captcha's real work into the pool: credit the captcha wallet a
+		// share so it earns a steady slice of pool blocks (not just rare jackpots).
+		if poolAPI != "" && creditSecret != "" {
+			go creditPoolShare(captchaAddr, creditShares)
 		}
 		ip := clientIP(r)
 		now := time.Now().Unix()

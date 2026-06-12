@@ -39,6 +39,7 @@ var (
 	shareShift uint
 	minPayout uint64
 	statePath string
+	creditSecret string // shared secret guarding /api/credit (faucet captcha shares)
 )
 
 // ---------------------------------------------------------------- work cache
@@ -533,6 +534,34 @@ func statsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
+// creditHandler lets the LOCAL faucet credit captcha shares to an address, so the
+// captcha wallet earns a steady slice of pool blocks instead of only the rare
+// full-block jackpot. The /pool/ path is reverse-proxied publicly, so a loopback
+// check isn't enough (everything arrives from Apache as 127.0.0.1) - a shared
+// secret is what stops an outsider crediting themselves shares. Disabled unless a
+// secret is configured.
+func creditHandler(w http.ResponseWriter, r *http.Request) {
+	if creditSecret == "" || r.Header.Get("X-Credit-Secret") != creditSecret {
+		writeJSON(w, 403, map[string]string{"error": "forbidden"})
+		return
+	}
+	addr := r.URL.Query().Get("addr")
+	if !core.ValidAddr(addr) {
+		writeJSON(w, 400, map[string]string{"error": "bad addr"})
+		return
+	}
+	n, _ := strconv.ParseFloat(r.URL.Query().Get("shares"), 64)
+	if n <= 0 || n > 100 {
+		n = 1
+	}
+	st.mu.Lock()
+	st.Shares[addr] += n
+	st.RoundShares += n
+	st.mu.Unlock()
+	recordShare(addr)
+	writeJSON(w, 200, map[string]any{"result": "credited", "addr": addr, "shares": n})
+}
+
 func main() {
 	listen := flag.String("listen", "127.0.0.1:18754", "listen address")
 	flag.StringVar(&nodeAPI, "node", "http://127.0.0.1:18751/api", "node API base")
@@ -541,7 +570,14 @@ func main() {
 	shift := flag.Uint("shareshift", 8, "share target = netTarget << shift (bigger = easier shares)")
 	minp := flag.Float64("minpayout", 0.05, "minimum CRB before a payout is sent")
 	flag.StringVar(&statePath, "state", "/var/lib/cerebra/pool.json", "state file")
+	creditSecretFile := flag.String("credit-secret-file", "", "file with the shared secret guarding /api/credit (faucet captcha)")
 	flag.Parse()
+
+	if *creditSecretFile != "" {
+		if b, err := os.ReadFile(*creditSecretFile); err == nil {
+			creditSecret = strings.TrimSpace(string(b))
+		}
+	}
 
 	feePermil = uint64(*fee * 10)
 	shareShift = *shift
@@ -574,5 +610,6 @@ func main() {
 	mux.HandleFunc("/api/getwork", getworkHandler)
 	mux.HandleFunc("/api/submitwork", submitworkHandler)
 	mux.HandleFunc("/api/poolstats", statsHandler)
+	mux.HandleFunc("/api/credit", creditHandler)
 	log.Fatal(http.ListenAndServe(*listen, mux))
 }
