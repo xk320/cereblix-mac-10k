@@ -10,7 +10,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Cereblix (CRB) - the coin your CPU mines">
 <meta property="og:description" content="A self-mutating NeuroMorph proof-of-work that lives on your processor. No GPU, no ASIC, ever. Fair launch, no premine.">
-<meta property="og:image" content="http://188.34.181.191/cereblix/logo.png">
+<meta property="og:image" content="https://cereblix.com/logo.png">
 <style>
 @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/spacegrotesk-500.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/spacegrotesk-700.woff2') format('woff2')}
@@ -340,7 +340,7 @@ cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
     <div class="card">
       <h3><span class="ico">👥</span><span data-i="pool_t">Pool</span></h3>
       <p data-i="pool_b">You mine together with everyone else. You earn a steady trickle proportional to your work, and the pool auto-pays your address once you reach 0.05 CRB (1% fee). Best for laptops and ordinary CPUs - far less variance.</p>
-      <pre>cereblix-miner -addr crb1YOUR_ADDRESS -node http://188.34.181.191/cereblix/pool/api</pre>
+      <pre>cereblix-miner -addr crb1YOUR_ADDRESS -node https://cereblix.com/pool/api</pre>
     </div>
   </div>
   <div class="warn" data-i-html="sp_note">💡 On the pool your miner may log <b>"block found"</b> often - those are <b>shares</b> (proofs of work at an easier target), not full blocks. Your real reward lands as automatic pool payouts to your address. Same miner either way - only the <code>-node</code> changes.</div>
@@ -358,7 +358,7 @@ cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
     <tr><th data-i="spec_premine">Premine</th><td data-i="spec_premine_v"><b>0</b> - empty genesis</td></tr>
     <tr><th data-i="spec_sig">Signatures / addresses</th><td>ed25519 · crb1 + SHA-256(pubkey)</td></tr>
     <tr><th data-i="spec_seed">Seed node</th><td><code>http://188.34.181.191:18750</code></td></tr>
-    <tr><th data-i="spec_api">Explorer API</th><td><code>http://188.34.181.191/cereblix/api/status</code></td></tr>
+    <tr><th data-i="spec_api">Explorer API</th><td><code>https://cereblix.com/api/status</code></td></tr>
   </table></div>
   <h2 style="margin-top:36px" data-i-html="spec_latest">Latest <em>blocks</em></h2>
   <div class="card"><table id="blocks"><thead><tr><th>#</th><th data-i="bl_time">Time</th><th data-i="bl_hash">Hash</th><th>Tx</th><th data-i="bl_miner">Miner</th></tr></thead><tbody></tbody></table></div>

@@ -3,10 +3,10 @@
 **A CPU-only cryptocurrency built from scratch on the self-mutating NeuroMorph
 proof-of-work algorithm.** No GPU, no ASIC - ever. One CPU, one vote.
 
-- 🌐 Site & explorer: http://188.34.181.191/cereblix/
-- 💼 Web wallet: http://188.34.181.191/cereblix/wallet/
-- 🚰 Free faucet: http://188.34.181.191/cereblix/faucet.html
-- ⛏️ Pool: `-node http://188.34.181.191/cereblix/pool/api`
+- 🌐 Site & explorer: https://cereblix.com/
+- 💼 Web wallet: https://cereblix.com/wallet/
+- 🚰 Free faucet: https://cereblix.com/faucet.html
+- ⛏️ Pool: `-node https://cereblix.com/pool/api`
 - 📖 Full design: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 > A free, open-source project with **zero premine, zero fund, no fundraising**.
@@ -98,7 +98,7 @@ Solo mining is a lottery; a pool pays a steady trickle proportional to your work
 The stock miner works against the pool unchanged - just point `-node` at it:
 
 ```sh
-cereblix-miner -addr crb1YOURADDRESS -node http://188.34.181.191/cereblix/pool/api
+cereblix-miner -addr crb1YOURADDRESS -node https://cereblix.com/pool/api
 ```
 
 On the pool the miner logs frequent "block found" - those are *shares*; your real
@@ -108,7 +108,7 @@ reward arrives as automatic pool payouts to your address.
 
 No coins yet? Grab a little from the faucet to try the wallet. The anti-bot check
 is a real in-browser NeuroMorph **share** (your CPU mines for a moment), so it
-doubles as a tiny mining onramp: http://188.34.181.191/cereblix/faucet.html
+doubles as a tiny mining onramp: https://cereblix.com/faucet.html
 
 ## Run a full node
 
