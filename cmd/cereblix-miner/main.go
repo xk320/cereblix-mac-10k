@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	minerVersion     = "1.2.11"
+	minerVersion     = "1.2.12"
 	hostMain         = "https://cereblix.com"
 	hostRU           = "https://ru.cereblix.com"
 	updateVersionURL = "https://github.com/xk320/cereblix-mac-10k/releases/latest/download/miner-version.txt"
@@ -55,8 +55,8 @@ type work struct {
 // config persists the user's choices next to the binary (cereblix-miner.json).
 type config struct {
 	Addr    string `json:"addr"`
-	Node    string `json:"node"`    // full base URL, incl. /pool/api or /api
-	Mode    string `json:"mode"`    // "pool" or "solo" (display only; Node is authoritative)
+	Node    string `json:"node"` // full base URL, incl. /pool/api or /api
+	Mode    string `json:"mode"` // "pool" or "solo" (display only; Node is authoritative)
 	Threads int    `json:"threads"`
 }
 
@@ -123,10 +123,9 @@ func recommendedThreadsFor(goos, goarch string, cpus int) int {
 		return 1
 	}
 	if goos == "darwin" && goarch == "arm64" {
-		// Apple Silicon still gains from modest overprovisioning, but the arm64
-		// AES fill fast path shifts the bottleneck toward VM/dataset work.
-		// macmini87's 10-core M4 peaked at 11 threads in public pool testing.
-		return (cpus*11 + 9) / 10
+		// The arm64 C VM fast path moves the best M4 pool result back to the
+		// physical CPU count; macmini87's 10-core M4 peaked at 10 threads.
+		return cpus
 	}
 	return cpus
 }

@@ -24,11 +24,11 @@ import (
 )
 
 const (
-	ScratchBytes = 2 << 20 // 2 MiB scratchpad, cache-resident on modern CPUs
-	scratchWords = ScratchBytes / 8
-	scratchMask  = uint64(ScratchBytes - 8) // 8-byte aligned addressing
+	ScratchBytes    = 2 << 20 // 2 MiB scratchpad, cache-resident on modern CPUs
+	scratchWords    = ScratchBytes / 8
+	scratchMask     = uint64(ScratchBytes - 8) // 8-byte aligned addressing
 	scratchWordMask = uint64(scratchWords - 1)
-	numOps       = 15
+	numOps          = 15
 
 	// Memory-hardness (activated at DatasetHeight). A 64 MiB read-only dataset,
 	// regenerated each epoch from the epoch seed and shared across all threads,
@@ -136,6 +136,8 @@ var (
 	dsCache = map[[16]byte][]uint64{}
 )
 
+var forceSlowProgram bool
+
 // getDataset returns the shared 64 MiB dataset for the given epoch key,
 // generating it (AES-CTR keystream) on first use. Deterministic across nodes.
 func getDataset(key [16]byte) []uint64 {
@@ -213,6 +215,9 @@ func (vm *VM) genProgram(seed [32]byte) {
 	copy(keyInput[:32], seed[:])
 	keyInput[32] = 0x50
 	key := sha256.Sum256(keyInput[:])
+	if genProgramFast(key, &vm.params.OpTable, vm.prog) {
+		return
+	}
 	blk, _ := aes.NewCipher(key[:16])
 	var in, out [16]byte
 	copy(in[:], key[16:32])
@@ -297,103 +302,105 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 	}
 
 	var aesIn, aesOut [16]byte
-	for loop := 0; loop < p.Loops; loop++ {
-		for i := range taken {
-			taken[i] = 0
-		}
-		pc := 0
-		for pc < progSize {
-			ins := prog[pc]
-			d := ins.dst
-			s := ins.src
-			imm := uint64(ins.imm)
-			switch ins.op {
-			case opIADD:
-				r[d] += r[s] + imm
-			case opIMUL:
-				r[d] *= r[s] | 1
-			case opIMULH:
-				hi, _ := bits.Mul64(r[d], r[s])
-				r[d] = hi ^ imm
-			case opIXOR:
-				r[d] ^= r[s] + rotSalt
-			case opIROTR:
-				r[d] = bits.RotateLeft64(r[d], -int((r[s]^imm)&63))
-			case opINEG:
-				r[d] = ^r[d] + imm
-			case opFADD:
-				f[d&7] = f[d&7] + f[s&7]
-				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
-					f[d&7] = normFloat(r[d] | 1)
-				}
-			case opFMUL:
-				f[d&7] = f[d&7] * f[s&7]
-				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
-					f[d&7] = normFloat(r[d] | 1)
-				}
-			case opFDIV:
-				f[d&7] = f[d&7] / normFloat(math.Float64bits(f[s&7]))
-				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
-					f[d&7] = normFloat(r[d] | 1)
-				}
-			case opFSQRT:
-				f[d&7] = math.Sqrt(math.Abs(f[d&7]))
-				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
-					f[d&7] = normFloat(r[d] | 1)
-				}
-			case opLOAD:
-				addr := (r[s] + imm) & scratchMask
-				r[d] ^= scratch[addr>>3]
-			case opSTORE:
-				addr := (r[d] + imm) & scratchMask
-				scratch[addr>>3] ^= r[s] + uint64(loop)
-			case opCBRANCH:
-				// Data-dependent backward branch, bounded to guarantee halt.
-				if (r[d]+imm)&branchMask == 0 && taken[pc] < 8 {
-					taken[pc]++
-					back := int(ins.imm%31) + 1
-					pc -= back
-					if pc < 0 {
-						pc = 0
+	if forceSlowProgram || !executeProgramFast(p, prog, taken, scratch, dataset, &r, &f, useDS) {
+		for loop := 0; loop < p.Loops; loop++ {
+			for i := range taken {
+				taken[i] = 0
+			}
+			pc := 0
+			for pc < progSize {
+				ins := prog[pc]
+				d := ins.dst
+				s := ins.src
+				imm := uint64(ins.imm)
+				switch ins.op {
+				case opIADD:
+					r[d] += r[s] + imm
+				case opIMUL:
+					r[d] *= r[s] | 1
+				case opIMULH:
+					hi, _ := bits.Mul64(r[d], r[s])
+					r[d] = hi ^ imm
+				case opIXOR:
+					r[d] ^= r[s] + rotSalt
+				case opIROTR:
+					r[d] = bits.RotateLeft64(r[d], -int((r[s]^imm)&63))
+				case opINEG:
+					r[d] = ^r[d] + imm
+				case opFADD:
+					f[d&7] = f[d&7] + f[s&7]
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
 					}
-					continue
+				case opFMUL:
+					f[d&7] = f[d&7] * f[s&7]
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
+					}
+				case opFDIV:
+					f[d&7] = f[d&7] / normFloat(math.Float64bits(f[s&7]))
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
+					}
+				case opFSQRT:
+					f[d&7] = math.Sqrt(math.Abs(f[d&7]))
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
+					}
+				case opLOAD:
+					addr := (r[s] + imm) & scratchMask
+					r[d] ^= scratch[addr>>3]
+				case opSTORE:
+					addr := (r[d] + imm) & scratchMask
+					scratch[addr>>3] ^= r[s] + uint64(loop)
+				case opCBRANCH:
+					// Data-dependent backward branch, bounded to guarantee halt.
+					if (r[d]+imm)&branchMask == 0 && taken[pc] < 8 {
+						taken[pc]++
+						back := int(ins.imm%31) + 1
+						pc -= back
+						if pc < 0 {
+							pc = 0
+						}
+						continue
+					}
+				case opAESR:
+					addr := (r[s] + imm) & scratchMask & ^uint64(15)
+					w := addr >> 3
+					binary.LittleEndian.PutUint64(aesIn[0:8], scratch[w])
+					binary.LittleEndian.PutUint64(aesIn[8:16], scratch[w+1])
+					vm.aes.Encrypt(aesOut[:], aesIn[:])
+					scratch[w] = binary.LittleEndian.Uint64(aesOut[0:8])
+					scratch[w+1] = binary.LittleEndian.Uint64(aesOut[8:16])
+					r[d] ^= scratch[w]
+				case opXDOM:
+					if ins.imm&1 == 0 {
+						r[d] ^= math.Float64bits(f[s&7])
+					} else {
+						f[d&7] = f[d&7] * normFloat(r[s])
+					}
 				}
-			case opAESR:
-				addr := (r[s] + imm) & scratchMask & ^uint64(15)
-				w := addr >> 3
-				binary.LittleEndian.PutUint64(aesIn[0:8], scratch[w])
-				binary.LittleEndian.PutUint64(aesIn[8:16], scratch[w+1])
-				vm.aes.Encrypt(aesOut[:], aesIn[:])
-				scratch[w] = binary.LittleEndian.Uint64(aesOut[0:8])
-				scratch[w+1] = binary.LittleEndian.Uint64(aesOut[8:16])
-				r[d] ^= scratch[w]
-			case opXDOM:
-				if ins.imm&1 == 0 {
-					r[d] ^= math.Float64bits(f[s&7])
-				} else {
-					f[d&7] = f[d&7] * normFloat(r[s])
+				pc++
+			}
+			// Memory-hard step (post-activation): a chain of data-dependent random
+			// reads from the 64 MiB dataset. Each address depends on the previous
+			// read, so the walk is latency-bound and cannot be prefetched.
+			if useDS {
+				addr := (r[1] ^ rotSalt) & datasetMask
+				for k := 0; k < datasetReadsPerLoop; k++ {
+					v := dataset[addr>>3]
+					r[k&15] ^= v
+					addr = (v + r[(k+1)&15] + uint64(loop)) & datasetMask
 				}
 			}
-			pc++
-		}
-		// Memory-hard step (post-activation): a chain of data-dependent random
-		// reads from the 64 MiB dataset. Each address depends on the previous
-		// read, so the walk is latency-bound and cannot be prefetched.
-		if useDS {
-			addr := (r[1] ^ rotSalt) & datasetMask
-			for k := 0; k < datasetReadsPerLoop; k++ {
-				v := dataset[addr>>3]
-				r[k&15] ^= v
-				addr = (v + r[(k+1)&15] + uint64(loop)) & datasetMask
+			// Fold registers back into the scratchpad so loops cannot be skipped.
+			base := ((r[0] ^ uint64(loop)*0x9E3779B97F4A7C15) & scratchMask) >> 3
+			for i := 0; i < 16; i++ {
+				scratch[(base+uint64(i))&scratchWordMask] ^= r[i]
 			}
-		}
-		// Fold registers back into the scratchpad so loops cannot be skipped.
-		base := ((r[0] ^ uint64(loop)*0x9E3779B97F4A7C15) & scratchMask) >> 3
-		for i := 0; i < 16; i++ {
-			scratch[(base+uint64(i))&scratchWordMask] ^= r[i]
-		}
-		for i := 0; i < 8; i++ {
-			r[i+8] ^= math.Float64bits(f[i])
+			for i := 0; i < 8; i++ {
+				r[i+8] ^= math.Float64bits(f[i])
+			}
 		}
 	}
 
