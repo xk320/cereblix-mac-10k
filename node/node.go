@@ -636,38 +636,39 @@ func (n *Node) RPCHandler() http.Handler {
 		tip := n.Chain.Tip()
 		tgt, _ := tip.TargetInt()
 		diff := core.WorkOf(tgt)
-		// Network hashrate estimate = work over a short recent window (~8 blocks)
-		// divided by the time those blocks took. Short window so it tracks miners
-		// joining/leaving; a genuine multi-minute stall (handled below) still pulls
-		// it down, but ordinary per-block timing variance does not.
+		// Network hashrate from the current DIFFICULTY and the TARGET block time,
+		// not from noisy recent intervals. Difficulty is tuned so that, at the real
+		// network hashrate, blocks take BlockTargetSpacing on average; so
+		// work-per-block / target spacing estimates the rate miners actually run,
+		// the same quantity the pool measures from shares, but derived purely from
+		// on-chain data (a node never sees off-chain shares). This is stable: it does
+		// not wobble with per-block luck. We average the last few targets to ride
+		// smoothly across a difficulty step, and a genuine multi-minute stall still
+		// pulls it down (the real gap replaces the target spacing below).
 		var hashrate float64
 		hgt := n.Chain.Height()
 		now := uint64(time.Now().Unix())
 		if hgt >= 1 {
-			const hrWindow = 8
-			w0 := uint64(hrWindow)
+			const win = 12
+			w0 := uint64(win)
 			if hgt < w0 {
 				w0 = hgt
 			}
-			first := n.Chain.BlockAt(hgt - w0)
 			work := new(big.Int)
 			for i := hgt - w0 + 1; i <= hgt; i++ {
 				t, _ := n.Chain.BlockAt(i).TargetInt()
 				work.Add(work, core.WorkOf(t))
 			}
-			// Elapsed time = span of the window. Only a GENUINE stall (no block for
-			// several minutes) folds the gap in - ordinary per-block variance must
-			// not be allowed to drag the estimate, or a single slow block makes the
-			// rate look like it crashed (the source of the confusing under-reads).
-			dt := float64(tip.Time) - float64(first.Time)
-			if sinceTip := float64(now) - float64(tip.Time); sinceTip > 300 && sinceTip > dt {
-				dt = sinceTip
+			perBlock := new(big.Float).Quo(new(big.Float).SetInt(work), big.NewFloat(float64(w0)))
+			spacing := float64(core.BlockTargetSpacing)
+			if sinceTip := float64(now) - float64(tip.Time); sinceTip > spacing*5 {
+				spacing = sinceTip // genuine stall: a real outage pulls the rate down
 			}
-			if dt < 1 {
-				dt = 1
+			if spacing < 1 {
+				spacing = 1
 			}
-			wf, _ := new(big.Float).SetInt(work).Float64()
-			hashrate = wf / dt
+			pb, _ := perBlock.Float64()
+			hashrate = pb / spacing
 		}
 		blockAge := int64(now) - int64(tip.Time)
 		if blockAge < 0 {

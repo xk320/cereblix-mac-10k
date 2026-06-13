@@ -32,12 +32,20 @@ import (
 )
 
 const (
-	minerVersion     = "1.2"
-	hostMain         = "https://cereblix.com"
-	hostRU           = "https://ru.cereblix.com"
-	updateVersionURL = "https://github.com/Cerebra-CBR/cereblix/releases/latest/download/miner-version.txt"
-	releasePage      = "https://github.com/Cerebra-CBR/cereblix/releases/latest"
+	minerVersion = "1.3"
+	hostMain     = "https://cereblix.com"
+	hostRU       = "https://ru.cereblix.com"
+	releasePage  = "https://github.com/Cereblix/cereblix/releases/latest"
 )
+
+// updateMirrors are tried in order for the version check and the binary download:
+// GitHub first, then our origin (cereblix.com). The origin fallback is RU-friendly
+// AND independent of GitHub, so a GitHub repo rename or a block never breaks the
+// miner's self-update. Each mirror serves the same filenames at its base.
+var updateMirrors = []string{
+	"https://github.com/Cereblix/cereblix/releases/latest/download/",
+	"https://cereblix.com/",
+}
 
 type work struct {
 	ID     string `json:"id"`
@@ -203,18 +211,50 @@ func wizard(in *bufio.Reader, cur config) config {
 
 // --- self-update -----------------------------------------------------------
 
-func dlURL() string {
-	base := "https://github.com/Cerebra-CBR/cereblix/releases/latest/download/"
+func minerFilename() string {
 	switch {
 	case runtime.GOOS == "windows":
-		return base + "cereblix-miner-windows-amd64.exe"
+		return "cereblix-miner-windows-amd64.exe"
 	case runtime.GOOS == "darwin" && runtime.GOARCH == "arm64":
-		return base + "cereblix-miner-darwin-arm64"
+		return "cereblix-miner-darwin-arm64"
 	case runtime.GOOS == "darwin":
-		return base + "cereblix-miner-darwin-amd64"
+		return "cereblix-miner-darwin-amd64"
 	default:
-		return base + "cereblix-miner-linux-amd64"
+		return "cereblix-miner-linux-amd64"
 	}
+}
+
+// dlURLs is the platform binary on each mirror, in preference order.
+func dlURLs() []string {
+	f := minerFilename()
+	out := make([]string, 0, len(updateMirrors))
+	for _, m := range updateMirrors {
+		out = append(out, m+f)
+	}
+	return out
+}
+
+// dlURL is the preferred (first) download URL, for display.
+func dlURL() string { return dlURLs()[0] }
+
+// fetchLatestVersion returns the newest published miner version, trying each
+// mirror (GitHub, then origin). Empty string if none is reachable.
+func fetchLatestVersion(timeout time.Duration) string {
+	cl := &http.Client{Timeout: timeout}
+	for _, m := range updateMirrors {
+		resp, err := cl.Get(m + "miner-version.txt")
+		if err != nil {
+			continue
+		}
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 64))
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			if v := strings.TrimSpace(string(b)); v != "" {
+				return v
+			}
+		}
+	}
+	return ""
 }
 
 // newer reports whether version a is higher than b ("1.10" > "1.9").
@@ -237,18 +277,14 @@ func newer(a, b string) bool {
 // (common in RU/CIS) it just suggests a manual check and moves on. If a newer
 // version exists it offers a one-key auto-update.
 func checkUpdate(in *bufio.Reader, tty bool) {
-	cl := &http.Client{Timeout: 6 * time.Second}
-	resp, err := cl.Get(updateVersionURL)
-	if err != nil {
-		fmt.Println("ℹ Could not reach GitHub to check for updates (it may be blocked in your region).")
+	latest := fetchLatestVersion(6 * time.Second)
+	if latest == "" {
+		fmt.Println("ℹ Could not reach the update server (GitHub or cereblix.com).")
 		fmt.Println("  Check for a newer miner manually:", releasePage)
 		return
 	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 64))
-	latest := strings.TrimSpace(string(b))
-	if resp.StatusCode != 200 || latest == "" || !newer(latest, minerVersion) {
-		return // up to date, or couldn't determine
+	if !newer(latest, minerVersion) {
+		return // up to date
 	}
 	fmt.Printf("\n⬆  A newer miner is available: v%s (you have v%s)\n", latest, minerVersion)
 	fmt.Printf("   Download: %s\n", dlURL())
@@ -283,49 +319,53 @@ func selfUpdate() error {
 		return err
 	}
 	cl := &http.Client{Timeout: 180 * time.Second}
-	resp, err := cl.Get(dlURL())
-	if err != nil {
-		return err
+	var lastErr error
+	for _, u := range dlURLs() {
+		resp, err := cl.Get(u)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			lastErr = fmt.Errorf("download HTTP %d from %s", resp.StatusCode, u)
+			continue
+		}
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if len(data) < 1_000_000 { // sanity: a real binary is several MB
+			lastErr = fmt.Errorf("downloaded file from %s looks wrong (%d bytes)", u, len(data))
+			continue
+		}
+		if err := os.WriteFile(exe+".new", data, 0o755); err != nil {
+			return err
+		}
+		os.Remove(exe + ".old")
+		if err := os.Rename(exe, exe+".old"); err != nil {
+			return err
+		}
+		if err := os.Rename(exe+".new", exe); err != nil {
+			os.Rename(exe+".old", exe) // revert
+			return err
+		}
+		return nil
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("download HTTP %d", resp.StatusCode)
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no update mirror reachable")
 	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if len(data) < 1_000_000 { // sanity: a real binary is several MB
-		return fmt.Errorf("downloaded file looks wrong (%d bytes)", len(data))
-	}
-	if err := os.WriteFile(exe+".new", data, 0o755); err != nil {
-		return err
-	}
-	os.Remove(exe + ".old")
-	if err := os.Rename(exe, exe+".old"); err != nil {
-		return err
-	}
-	if err := os.Rename(exe+".new", exe); err != nil {
-		os.Rename(exe+".old", exe) // revert
-		return err
-	}
-	return nil
+	return lastErr
 }
 
 // runUpdate is the -update flag: fetch latest, install if newer, then exit.
 func runUpdate() {
-	cl := &http.Client{Timeout: 10 * time.Second}
-	resp, err := cl.Get(updateVersionURL)
-	if err != nil {
-		fmt.Println("Could not reach GitHub (it may be blocked in your region).")
+	latest := fetchLatestVersion(10 * time.Second)
+	if latest == "" {
+		fmt.Println("Could not reach the update server (GitHub or cereblix.com).")
 		fmt.Println("Download the latest miner manually:", releasePage)
-		return
-	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 64))
-	latest := strings.TrimSpace(string(b))
-	if resp.StatusCode != 200 || latest == "" {
-		fmt.Println("Couldn't determine the latest version. Check manually:", releasePage)
 		return
 	}
 	if !newer(latest, minerVersion) {
@@ -367,7 +407,7 @@ func main() {
 	flag.Parse()
 
 	fmt.Println("╔══════════════════════════════════════════════╗")
-	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.2       ║")
+	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.3       ║")
 	fmt.Println("║   one CPU = one vote                          ║")
 	fmt.Println("╚══════════════════════════════════════════════╝")
 
