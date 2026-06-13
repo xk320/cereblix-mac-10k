@@ -28,10 +28,21 @@ import (
 )
 
 const (
-	syncInterval  = 10 * time.Second
-	batchBlocks   = 200
+	syncInterval   = 3 * time.Second  // poll fallback; faster catch-up = fewer orphans for poll-only nodes
+	subscribeHold  = 20 * time.Second // how long the server holds a /p2p/subscribe long-poll (< server WriteTimeout)
+	batchBlocks    = 200
 	templateMaxAge = 8 * time.Second
 )
+
+// fallbackSeeds are baked-in public nodes used to bootstrap and to keep the mesh
+// connected even if a configured/DNS seed is temporarily down. Additive:
+// addr-gossip + discovery take over once connected, and an unreachable entry is
+// simply marked dead. Mirrors Bitcoin's hardcoded seed fallback.
+var fallbackSeeds = []string{
+	"http://seed.cereblix.com:18750",
+	"http://188.34.181.191:18750", // main (seed IP literal, survives DNS failure)
+	"http://186.246.11.2:18750",   // relay
+}
 
 type Node struct {
 	Chain *core.Chain
@@ -43,7 +54,14 @@ type Node struct {
 	peersMu sync.Mutex
 	peers   map[string]time.Time // base URL -> last success
 
-	client *http.Client
+	client    *http.Client
+	subClient *http.Client // longer timeout, for /p2p/subscribe long-polling
+
+	notifyMu sync.Mutex
+	notifyCh chan struct{} // closed+replaced on each adopted block (long-poll fan-out)
+
+	subMu       sync.Mutex
+	subscribing map[string]bool // peers we currently hold a subscribe loop for
 
 	tmplMu    sync.Mutex
 	templates map[string]*core.Block // template id -> unmined block
@@ -68,20 +86,48 @@ func (n *Node) SetUpgrade(m core.UpgradeManifest) {
 
 func New(chain *core.Chain, dataDir, publicURL string, seedPeers []string) *Node {
 	n := &Node{
-		Chain:     chain,
-		dataDir:   dataDir,
-		publicURL: strings.TrimRight(publicURL, "/"),
-		peers:     map[string]time.Time{},
-		client:    safePeerClient(),
-		templates: map[string]*core.Block{},
-		stop:      make(chan struct{}),
+		Chain:       chain,
+		dataDir:     dataDir,
+		publicURL:   strings.TrimRight(publicURL, "/"),
+		peers:       map[string]time.Time{},
+		client:      safePeerClient(),
+		subClient:   &http.Client{Timeout: subscribeHold + 15*time.Second, Transport: safePeerTransport()},
+		templates:   map[string]*core.Block{},
+		notifyCh:    make(chan struct{}),
+		subscribing: map[string]bool{},
+		stop:        make(chan struct{}),
 	}
 	n.loadPeers()
 	for _, p := range seedPeers {
 		n.addPeer(p)
 	}
-	chain.OnNewBlock = func(b *core.Block) { go n.broadcastBlock(b) }
+	for _, p := range fallbackSeeds {
+		n.addPeer(p)
+	}
+	// On a new block: wake long-poll subscribers instantly, then push to peers.
+	chain.OnNewBlock = func(b *core.Block) { n.fireNewBlock(); go n.broadcastBlock(b) }
 	return n
+}
+
+// newBlockSignal returns a channel closed when the next block is adopted; a
+// long-poll subscriber selects on it to be woken the instant a block arrives.
+func (n *Node) newBlockSignal() <-chan struct{} {
+	n.notifyMu.Lock()
+	defer n.notifyMu.Unlock()
+	if n.notifyCh == nil {
+		n.notifyCh = make(chan struct{})
+	}
+	return n.notifyCh
+}
+
+// fireNewBlock wakes every waiting long-poll subscriber (close + replace).
+func (n *Node) fireNewBlock() {
+	n.notifyMu.Lock()
+	if n.notifyCh != nil {
+		close(n.notifyCh)
+	}
+	n.notifyCh = make(chan struct{})
+	n.notifyMu.Unlock()
 }
 
 // ------------------------------------------------------------------ peers
@@ -135,7 +181,10 @@ func (n *Node) addPeer(peerURL string) {
 // SSRF defense: peerHostAllowed only screens IP-literal URLs, so a hostname that
 // resolves (or DNS-rebinds) to 169.254.169.254 / 127.0.0.1 / RFC1918 would slip
 // past it — but the dial Control hook here blocks the actual connection.
-func safePeerClient() *http.Client {
+// safePeerTransport builds the SSRF-guarded transport shared by every outbound
+// peer client: the dialer re-checks the resolved IP and refuses loopback/private/
+// link-local addresses at connect time.
+func safePeerTransport() *http.Transport {
 	dialer := &net.Dialer{
 		Timeout: 10 * time.Second,
 		Control: func(network, address string, _ syscall.RawConn) error {
@@ -154,16 +203,17 @@ func safePeerClient() *http.Client {
 			return nil
 		},
 	}
-	return &http.Client{
-		Timeout: 20 * time.Second,
-		Transport: &http.Transport{
-			DialContext:           dialer.DialContext,
-			MaxIdleConns:          64,
-			IdleConnTimeout:       60 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 2 * time.Second,
-		},
+	return &http.Transport{
+		DialContext:           dialer.DialContext,
+		MaxIdleConns:          64,
+		IdleConnTimeout:       60 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 2 * time.Second,
 	}
+}
+
+func safePeerClient() *http.Client {
+	return &http.Client{Timeout: 20 * time.Second, Transport: safePeerTransport()}
 }
 
 // peerHostAllowed rejects URLs whose host is a loopback/private/link-local IP
@@ -210,7 +260,9 @@ func (n *Node) markPeer(url string, ok bool) {
 
 // ------------------------------------------------------------ http helpers
 
-func (n *Node) getJSON(url string, out any) error {
+func (n *Node) getJSON(url string, out any) error { return n.getJSONWith(n.client, url, out) }
+
+func (n *Node) getJSONWith(cl *http.Client, url string, out any) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -218,7 +270,7 @@ func (n *Node) getJSON(url string, out any) error {
 	if n.publicURL != "" {
 		req.Header.Set("X-Cerebra-Peer", n.publicURL)
 	}
-	resp, err := n.client.Do(req)
+	resp, err := cl.Do(req)
 	if err != nil {
 		return err
 	}
@@ -423,6 +475,67 @@ func (n *Node) broadcastTx(t *core.Tx) {
 	}
 }
 
+// subscribeManager keeps one long-poll subscription open to each known peer so
+// new blocks arrive by push over OUR outbound connection within milliseconds,
+// the way a NAT node stays current in Bitcoin without accepting inbound. Peers
+// that don't expose /p2p/subscribe (older nodes) are left to the periodic
+// SyncLoop - fully backward compatible.
+func (n *Node) subscribeManager() {
+	for {
+		select {
+		case <-n.stop:
+			return
+		case <-time.After(5 * time.Second):
+		}
+		for _, p := range n.peerList() {
+			n.subMu.Lock()
+			if !n.subscribing[p] {
+				n.subscribing[p] = true
+				go n.subscribeLoop(p)
+			}
+			n.subMu.Unlock()
+		}
+	}
+}
+
+func (n *Node) subscribeLoop(peer string) {
+	defer func() {
+		n.subMu.Lock()
+		delete(n.subscribing, peer)
+		n.subMu.Unlock()
+		if rec := recover(); rec != nil {
+			log.Printf("subscribe: recovered on peer %s: %v", peer, rec)
+		}
+	}()
+	misses := 0
+	for {
+		select {
+		case <-n.stop:
+			return
+		default:
+		}
+		n.peersMu.Lock()
+		_, known := n.peers[peer]
+		n.peersMu.Unlock()
+		if !known {
+			return
+		}
+		var tip tipInfo
+		if err := n.getJSONWith(n.subClient, peer+"/p2p/subscribe", &tip); err != nil {
+			if strings.Contains(err.Error(), "http 404") {
+				return // old node without /p2p/subscribe; SyncLoop still polls it
+			}
+			if misses++; misses >= 4 {
+				return // unreliable; SyncLoop covers it and the manager retries later
+			}
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		misses = 0
+		n.syncWithPeer(peer) // a block was announced (or the hold timed out): pull & adopt
+	}
+}
+
 // ------------------------------------------------------- per-IP rate limiter
 
 // rateLimiter is a token-bucket limiter keyed by client IP. It fronts the
@@ -579,6 +692,21 @@ func (n *Node) P2PHandler() http.Handler {
 	mux.HandleFunc("/p2p/peers", func(w http.ResponseWriter, r *http.Request) {
 		reg(w, r)
 		writeJSON(w, n.peerList())
+	})
+	// Long-poll: hold the request until a new block is adopted (push), or a short
+	// timeout after which the caller re-subscribes. This lets a node behind NAT
+	// receive blocks instantly over the connection IT opened, without being
+	// publicly reachable - the same property that keeps NAT nodes current in
+	// Bitcoin. Older peers simply don't call this; nothing breaks.
+	mux.HandleFunc("/p2p/subscribe", func(w http.ResponseWriter, r *http.Request) {
+		reg(w, r)
+		select {
+		case <-n.newBlockSignal():
+		case <-time.After(subscribeHold):
+		case <-r.Context().Done():
+			return
+		}
+		writeJSON(w, n.myTip())
 	})
 	// Serve the latest authority checkpoint so peers can pull and enforce it.
 	// Receivers verify the signature against the hardcoded authority key, so a
@@ -1159,5 +1287,6 @@ func (n *Node) Serve(p2pAddr, rpcAddr string) error {
 		errc <- newServer(rpcAddr, n.RPCHandler()).ListenAndServe()
 	}()
 	go n.SyncLoop()
+	go n.subscribeManager()
 	return <-errc
 }
