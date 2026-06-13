@@ -38,6 +38,7 @@ type Node struct {
 
 	dataDir   string
 	publicURL string // advertised to peers, may be empty
+	Version   string // node software version, surfaced in /api/status
 
 	peersMu sync.Mutex
 	peers   map[string]time.Time // base URL -> last success
@@ -381,11 +382,16 @@ func (n *Node) fetchCheckpoint(peer string) {
 	}
 	if n.Chain.ApplyCheckpoint(cp) {
 		n.cpMu.Lock()
+		isNew := cp.Height > n.checkpoint.Height
 		if cp.Height >= n.checkpoint.Height {
 			n.checkpoint = cp
 		}
 		n.cpMu.Unlock()
-		log.Printf("checkpoint: enforcing authority checkpoint at height %d", cp.Height)
+		// Only log when the enforced checkpoint actually advances, otherwise every
+		// poll spams the same line.
+		if isNew {
+			log.Printf("checkpoint: enforcing authority checkpoint at height %d", cp.Height)
+		}
 	}
 }
 
@@ -684,6 +690,8 @@ func (n *Node) RPCHandler() http.Handler {
 			"now":           now,
 			"fee_suggested": n.Chain.SuggestedFee(),
 			"fee_floor":     n.Chain.FeeFloor(),
+			"node_version":      n.Version,
+			"consensus_version": core.NodeConsensusVersion,
 			"chain_id":        core.ChainID,
 			"chain_id_height": core.ChainIDHeight,
 		})

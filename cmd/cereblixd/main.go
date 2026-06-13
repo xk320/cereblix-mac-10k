@@ -67,6 +67,7 @@ func main() {
 		}
 	}
 	n := node.New(chain, *datadir, *public, seeds)
+	n.Version = nodeVersion
 	log.Printf("node software v%s (consensus v%d)", nodeVersion, core.NodeConsensusVersion)
 	go autoUpdateLoop(n, !*noUpdate)
 
