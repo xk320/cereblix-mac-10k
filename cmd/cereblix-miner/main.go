@@ -205,10 +205,16 @@ func wizard(in *bufio.Reader, cur config) config {
 
 func dlURL() string {
 	base := "https://github.com/Cerebra-CBR/cereblix/releases/latest/download/"
-	if runtime.GOOS == "windows" {
+	switch {
+	case runtime.GOOS == "windows":
 		return base + "cereblix-miner-windows-amd64.exe"
+	case runtime.GOOS == "darwin" && runtime.GOARCH == "arm64":
+		return base + "cereblix-miner-darwin-arm64"
+	case runtime.GOOS == "darwin":
+		return base + "cereblix-miner-darwin-amd64"
+	default:
+		return base + "cereblix-miner-linux-amd64"
 	}
-	return base + "cereblix-miner-linux-amd64"
 }
 
 // newer reports whether version a is higher than b ("1.10" > "1.9").
