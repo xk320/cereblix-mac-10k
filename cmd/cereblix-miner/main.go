@@ -1,5 +1,10 @@
 // cereblix-miner is the standalone NeuroMorph CPU miner for AMD64 (Intel/AMD).
 // It pulls work from any Cereblix node over HTTP (getwork) and submits shares.
+//
+// First run shows a tiny setup wizard (address, server, pool/solo, threads) and
+// saves everything to cereblix-miner.json right next to the binary, so next time
+// it just remembers. Power users / services can still pass -addr -node -threads
+// on the command line (those override the saved config and skip the wizard).
 package main
 
 import (
@@ -13,7 +18,9 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -36,6 +43,19 @@ type work struct {
 	Extranonce uint64 `json:"extranonce"`
 }
 
+// config persists the user's choices next to the binary (cereblix-miner.json).
+type config struct {
+	Addr    string `json:"addr"`
+	Node    string `json:"node"`    // full base URL, incl. /pool/api or /api
+	Mode    string `json:"mode"`    // "pool" or "solo" (display only; Node is authoritative)
+	Threads int    `json:"threads"`
+}
+
+const (
+	hostMain = "https://cereblix.com"
+	hostRU   = "https://ru.cereblix.com"
+)
+
 var (
 	nodeURL   string
 	addr      string
@@ -46,41 +66,235 @@ var (
 	client    = &http.Client{Timeout: 15 * time.Second}
 )
 
-func main() {
-	flag.StringVar(&nodeURL, "node", "https://cereblix.com/api", "node RPC base URL")
-	flag.StringVar(&addr, "addr", "", "your CRB address (rewards go here)")
-	threads := flag.Int("threads", runtime.NumCPU(), "mining threads")
-	flag.Parse()
+func configPath() string {
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Join(filepath.Dir(exe), "cereblix-miner.json")
+	}
+	return "cereblix-miner.json"
+}
 
-	fmt.Println("╔══════════════════════════════════════════════╗")
-	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.0       ║")
-	fmt.Println("║   one CPU = one vote                          ║")
-	fmt.Println("╚══════════════════════════════════════════════╝")
-	// Double-click friendly: ask for the address instead of dying instantly.
-	stdin := bufio.NewReader(os.Stdin)
-	for !core.ValidAddr(addr) {
-		if addr != "" {
-			fmt.Println("Invalid address. It must look like: crb1 + 40 hex chars.")
+func loadConfig() (config, bool) {
+	var c config
+	b, err := os.ReadFile(configPath())
+	if err != nil || json.Unmarshal(b, &c) != nil {
+		return config{}, false
+	}
+	return c, true
+}
+
+func saveConfig(c config) {
+	b, _ := json.MarshalIndent(c, "", "  ")
+	if err := os.WriteFile(configPath(), b, 0644); err != nil {
+		log.Printf("warning: could not save config (%v)", err)
+		return
+	}
+	fmt.Printf("\n✔ Settings saved to %s\n", configPath())
+}
+
+func isTTY() bool {
+	fi, err := os.Stdin.Stat()
+	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
+}
+
+func modeFromURL(u string) string {
+	if strings.Contains(u, "/pool/") {
+		return "pool"
+	}
+	return "solo"
+}
+
+func buildNode(host, mode string) string {
+	if mode == "solo" {
+		return host + "/api"
+	}
+	return host + "/pool/api"
+}
+
+func read(r *bufio.Reader) string {
+	line, _ := r.ReadString('\n')
+	return strings.TrimSpace(line)
+}
+
+func printCfg(c config) {
+	host := c.Node
+	for _, h := range []string{hostMain, hostRU} {
+		if strings.HasPrefix(c.Node, h) {
+			host = h
+		}
+	}
+	fmt.Printf("   address : %s\n", c.Addr)
+	fmt.Printf("   mode    : %s\n", c.Mode)
+	fmt.Printf("   node    : %s  (%s)\n", c.Node, host)
+	fmt.Printf("   threads : %d\n", c.Threads)
+}
+
+// wizard walks the user through setup, pre-filling from any existing config.
+func wizard(in *bufio.Reader, cur config) config {
+	c := cur
+
+	// 1) address
+	for !core.ValidAddr(c.Addr) {
+		if c.Addr != "" {
+			fmt.Println("Invalid address - it must look like: crb1 + 40 hex chars.")
 		}
 		fmt.Println("No wallet yet? Create one at https://cereblix.com/wallet/")
 		fmt.Print("Enter your CRB address (crb1...): ")
-		line, err := stdin.ReadString('\n')
-		if err != nil {
-			fmt.Println("error: address required (-addr crb1...)")
+		c.Addr = read(in)
+	}
+
+	// 2) server
+	fmt.Println()
+	fmt.Println("Which server do you want to mine through?")
+	fmt.Println("  1) cereblix.com      - main server (recommended)")
+	fmt.Println("  2) ru.cereblix.com   - Russia / CIS node  [pick this if your machine is in")
+	fmt.Println("                         RU/CIS or cereblix.com is slow/blocked for you]")
+	fmt.Println("  3) custom            - enter your own node URL")
+	fmt.Print("Choose [1/2/3] (default 1): ")
+	host, custom := hostMain, ""
+	switch read(in) {
+	case "2":
+		host = hostRU
+	case "3":
+		for {
+			fmt.Print("Full node base URL (e.g. http://1.2.3.4:18751/api): ")
+			custom = read(in)
+			if strings.HasPrefix(custom, "http://") || strings.HasPrefix(custom, "https://") {
+				break
+			}
+			fmt.Println("Must start with http:// or https://")
+		}
+	}
+
+	// 3) mode (for built-in hosts; a custom URL already encodes it)
+	if custom != "" {
+		c.Node = custom
+		c.Mode = modeFromURL(custom)
+	} else {
+		fmt.Println()
+		fmt.Println("Mining mode:")
+		fmt.Println("  1) pool  - steady, frequent payouts; best for laptops & normal CPUs (recommended)")
+		fmt.Println("  2) solo  - you keep the whole 50 CRB block, but it's a lottery (big rigs only)")
+		fmt.Print("Choose [1/2] (default 1): ")
+		if read(in) == "2" {
+			c.Mode = "solo"
+		} else {
+			c.Mode = "pool"
+		}
+		c.Node = buildNode(host, c.Mode)
+	}
+
+	// 4) threads
+	def := runtime.NumCPU()
+	fmt.Println()
+	fmt.Printf("Threads (CPU cores to use). This machine has %d. Tip: use physical cores and\n", def)
+	fmt.Println("leave 1 free for the system; more threads than cores does not help.")
+	fmt.Printf("Threads (default %d, Enter to accept): ", def)
+	c.Threads = def
+	if n, err := strconv.Atoi(read(in)); err == nil && n > 0 {
+		c.Threads = n
+	}
+	return c
+}
+
+func main() {
+	var fNode, fAddr string
+	var fThreads int
+	var fReset, fReconf bool
+	flag.StringVar(&fNode, "node", "", "node RPC base URL (overrides saved config)")
+	flag.StringVar(&fAddr, "addr", "", "your CRB address (overrides saved config)")
+	flag.IntVar(&fThreads, "threads", 0, "mining threads (overrides saved config)")
+	flag.BoolVar(&fReset, "reset", false, "wipe the saved config and reconfigure")
+	flag.BoolVar(&fReconf, "reconfigure", false, "re-run the setup wizard")
+	flag.Parse()
+
+	fmt.Println("╔══════════════════════════════════════════════╗")
+	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.1       ║")
+	fmt.Println("║   one CPU = one vote                          ║")
+	fmt.Println("╚══════════════════════════════════════════════╝")
+
+	cfg, have := loadConfig()
+	if fReset {
+		os.Remove(configPath())
+		cfg, have = config{}, false
+		fmt.Println("Config reset.")
+	}
+	// command-line flags override the saved config (and run non-interactively)
+	if fAddr != "" {
+		cfg.Addr = fAddr
+	}
+	if fNode != "" {
+		cfg.Node, cfg.Mode = fNode, modeFromURL(fNode)
+	}
+	if fThreads > 0 {
+		cfg.Threads = fThreads
+	}
+	flagsGiven := fAddr != "" || fNode != ""
+
+	in := bufio.NewReader(os.Stdin)
+	tty := isTTY()
+	complete := core.ValidAddr(cfg.Addr) && cfg.Node != ""
+
+	switch {
+	case flagsGiven:
+		// service / power-user mode: honour flags, no wizard
+	case fReconf && tty:
+		cfg = wizard(in, cfg)
+		saveConfig(cfg)
+	case complete && have && tty:
+		fmt.Printf("\nSaved settings (from %s):\n", configPath())
+		printCfg(cfg)
+		fmt.Print("\nPress Enter to start mining with these, or type 'c' to change: ")
+		if read(in) == "c" {
+			cfg = wizard(in, cfg)
+			saveConfig(cfg)
+		}
+	case !complete && tty:
+		cfg = wizard(in, cfg)
+		saveConfig(cfg)
+	}
+
+	// fallbacks (non-interactive or partial config)
+	if cfg.Node == "" {
+		cfg.Node, cfg.Mode = buildNode(hostMain, "solo"), "solo"
+	}
+	if cfg.Mode == "" {
+		cfg.Mode = modeFromURL(cfg.Node)
+	}
+	if cfg.Threads <= 0 {
+		cfg.Threads = runtime.NumCPU()
+	}
+	for !core.ValidAddr(cfg.Addr) {
+		if !tty {
+			fmt.Println("error: a valid address is required. Run with -addr crb1... or run interactively.")
 			os.Exit(1)
 		}
-		addr = strings.TrimSpace(line)
+		fmt.Println("No wallet yet? Create one at https://cereblix.com/wallet/")
+		fmt.Print("Enter your CRB address (crb1...): ")
+		cfg.Addr = read(in)
 	}
-	log.Printf("node: %s | address: %s | threads: %d", nodeURL, addr, *threads)
+
+	nodeURL, addr = cfg.Node, cfg.Addr
+	threads := cfg.Threads
+
+	fmt.Println()
+	fmt.Printf("⚙  All your settings live in:  %s\n", configPath())
+	fmt.Println("   They're loaded automatically next time. To change them:")
+	fmt.Println("     -reconfigure   re-run this setup")
+	fmt.Println("     -reset         wipe the config and start fresh")
+	fmt.Println("   (or just edit / delete that file).")
+	fmt.Println()
+	log.Printf("mode: %s | node: %s | address: %s | threads: %d", cfg.Mode, nodeURL, addr, threads)
 
 	if err := fetchWork(); err != nil {
 		log.Printf("cannot reach node: %v", err)
-		fmt.Print("Press Enter to exit...")
-		stdin.ReadString('\n')
+		if tty {
+			fmt.Print("Press Enter to exit...")
+			in.ReadString('\n')
+		}
 		os.Exit(1)
 	}
 	go workLoop()
-	for i := 0; i < *threads; i++ {
+	for i := 0; i < threads; i++ {
 		go mineThread(uint64(i))
 	}
 
@@ -172,7 +386,9 @@ func mineThread(id uint64) {
 }
 
 func submit(id string, nonce uint64, height uint64) {
-	body, _ := json.Marshal(map[string]any{"id": id, "nonce": nonce})
+	// nonce as a string so 64-bit values (extranonce in the top bits) survive
+	// JSON without precision loss; the node/pool accept string or number.
+	body, _ := json.Marshal(map[string]any{"id": id, "nonce": strconv.FormatUint(nonce, 10)})
 	resp, err := client.Post(nodeURL+"/submitwork", "application/json", bytes.NewReader(body))
 	if err != nil {
 		log.Printf("submit failed: %v", err)
