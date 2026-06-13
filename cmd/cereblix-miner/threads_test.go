@@ -10,8 +10,8 @@ func TestRecommendedThreads(t *testing.T) {
 		cpus   int
 		want   int
 	}{
-		{name: "apple silicon overprovisions for throughput", goos: "darwin", goarch: "arm64", cpus: 10, want: 12},
-		{name: "apple silicon rounds up", goos: "darwin", goarch: "arm64", cpus: 8, want: 10},
+		{name: "apple silicon overprovisions for throughput", goos: "darwin", goarch: "arm64", cpus: 10, want: 11},
+		{name: "apple silicon rounds up", goos: "darwin", goarch: "arm64", cpus: 8, want: 9},
 		{name: "intel mac keeps cpu count", goos: "darwin", goarch: "amd64", cpus: 8, want: 8},
 		{name: "linux keeps cpu count", goos: "linux", goarch: "arm64", cpus: 16, want: 16},
 		{name: "minimum one", goos: "darwin", goarch: "arm64", cpus: 0, want: 1},

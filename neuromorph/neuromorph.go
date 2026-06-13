@@ -241,12 +241,26 @@ func normFloat(x uint64) float64 {
 	return math.Float64frombits(exp | mant)
 }
 
+func repairFloat(f *[8]float64, idx uint8, fallback uint64) {
+	v := f[idx&7]
+	b := math.Float64bits(v)
+	if b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+		f[idx&7] = normFloat(fallback | 1)
+	}
+}
+
 // Hash computes the NeuroMorph hash of `header` at block `height` under epoch
 // params. The header must already contain the nonce being tried. From
 // DatasetHeight onward the memory-hard dataset step is included; below it the
 // computation is byte-identical to v1 so pre-activation blocks stay valid.
 func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 	p := vm.params
+	prog := vm.prog
+	taken := vm.taken
+	scratch := vm.scratch
+	progSize := p.ProgSize
+	branchMask := p.BranchMask
+	rotSalt := p.RotSalt
 	var seedInput [8 + 256]byte
 	copy(seedInput[:8], "nm-seed|")
 	var seed [32]byte
@@ -264,6 +278,7 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 	if useDS && vm.dataset == nil {
 		vm.dataset = getDataset(p.DatasetKey)
 	}
+	dataset := vm.dataset
 
 	vm.fillScratch(seed)
 	vm.genProgram(seed)
@@ -275,20 +290,20 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 		r[i] = binary.LittleEndian.Uint64(seed[i*8 : i*8+8])
 	}
 	for i := 4; i < 16; i++ {
-		r[i] = vm.scratch[i] ^ p.RotSalt
+		r[i] = scratch[i] ^ rotSalt
 	}
 	for i := 0; i < 8; i++ {
-		f[i] = normFloat(vm.scratch[16+i])
+		f[i] = normFloat(scratch[16+i])
 	}
 
 	var aesIn, aesOut [16]byte
 	for loop := 0; loop < p.Loops; loop++ {
-		for i := range vm.taken {
-			vm.taken[i] = 0
+		for i := range taken {
+			taken[i] = 0
 		}
 		pc := 0
-		for pc < p.ProgSize {
-			ins := &vm.prog[pc]
+		for pc < progSize {
+			ins := prog[pc]
 			d := ins.dst
 			s := ins.src
 			imm := uint64(ins.imm)
@@ -301,29 +316,41 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 				hi, _ := bits.Mul64(r[d], r[s])
 				r[d] = hi ^ imm
 			case opIXOR:
-				r[d] ^= r[s] + p.RotSalt
+				r[d] ^= r[s] + rotSalt
 			case opIROTR:
 				r[d] = bits.RotateLeft64(r[d], -int((r[s]^imm)&63))
 			case opINEG:
 				r[d] = ^r[d] + imm
 			case opFADD:
 				f[d&7] = f[d&7] + f[s&7]
+				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+					f[d&7] = normFloat(r[d] | 1)
+				}
 			case opFMUL:
 				f[d&7] = f[d&7] * f[s&7]
+				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+					f[d&7] = normFloat(r[d] | 1)
+				}
 			case opFDIV:
 				f[d&7] = f[d&7] / normFloat(math.Float64bits(f[s&7]))
+				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+					f[d&7] = normFloat(r[d] | 1)
+				}
 			case opFSQRT:
 				f[d&7] = math.Sqrt(math.Abs(f[d&7]))
+				if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+					f[d&7] = normFloat(r[d] | 1)
+				}
 			case opLOAD:
 				addr := (r[s] + imm) & scratchMask
-				r[d] ^= vm.scratch[addr>>3]
+				r[d] ^= scratch[addr>>3]
 			case opSTORE:
 				addr := (r[d] + imm) & scratchMask
-				vm.scratch[addr>>3] ^= r[s] + uint64(loop)
+				scratch[addr>>3] ^= r[s] + uint64(loop)
 			case opCBRANCH:
 				// Data-dependent backward branch, bounded to guarantee halt.
-				if (r[d]+imm)&p.BranchMask == 0 && vm.taken[pc] < 8 {
-					vm.taken[pc]++
+				if (r[d]+imm)&branchMask == 0 && taken[pc] < 8 {
+					taken[pc]++
 					back := int(ins.imm%31) + 1
 					pc -= back
 					if pc < 0 {
@@ -334,24 +361,17 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 			case opAESR:
 				addr := (r[s] + imm) & scratchMask & ^uint64(15)
 				w := addr >> 3
-				binary.LittleEndian.PutUint64(aesIn[0:8], vm.scratch[w])
-				binary.LittleEndian.PutUint64(aesIn[8:16], vm.scratch[w+1])
+				binary.LittleEndian.PutUint64(aesIn[0:8], scratch[w])
+				binary.LittleEndian.PutUint64(aesIn[8:16], scratch[w+1])
 				vm.aes.Encrypt(aesOut[:], aesIn[:])
-				vm.scratch[w] = binary.LittleEndian.Uint64(aesOut[0:8])
-				vm.scratch[w+1] = binary.LittleEndian.Uint64(aesOut[8:16])
-				r[d] ^= vm.scratch[w]
+				scratch[w] = binary.LittleEndian.Uint64(aesOut[0:8])
+				scratch[w+1] = binary.LittleEndian.Uint64(aesOut[8:16])
+				r[d] ^= scratch[w]
 			case opXDOM:
 				if ins.imm&1 == 0 {
 					r[d] ^= math.Float64bits(f[s&7])
 				} else {
 					f[d&7] = f[d&7] * normFloat(r[s])
-				}
-			}
-			// Keep floats finite without branching on hardware flags.
-			if ins.op >= opFADD && ins.op <= opFSQRT {
-				v := f[d&7]
-				if math.IsNaN(v) || math.IsInf(v, 0) || v == 0 {
-					f[d&7] = normFloat(r[d] | 1)
 				}
 			}
 			pc++
@@ -360,9 +380,9 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 		// reads from the 64 MiB dataset. Each address depends on the previous
 		// read, so the walk is latency-bound and cannot be prefetched.
 		if useDS {
-			addr := (r[1] ^ p.RotSalt) & datasetMask
+			addr := (r[1] ^ rotSalt) & datasetMask
 			for k := 0; k < datasetReadsPerLoop; k++ {
-				v := vm.dataset[addr>>3]
+				v := dataset[addr>>3]
 				r[k&15] ^= v
 				addr = (v + r[(k+1)&15] + uint64(loop)) & datasetMask
 			}
@@ -370,7 +390,7 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 		// Fold registers back into the scratchpad so loops cannot be skipped.
 		base := ((r[0] ^ uint64(loop)*0x9E3779B97F4A7C15) & scratchMask) >> 3
 		for i := 0; i < 16; i++ {
-			vm.scratch[(base+uint64(i))&scratchWordMask] ^= r[i]
+			scratch[(base+uint64(i))&scratchWordMask] ^= r[i]
 		}
 		for i := 0; i < 8; i++ {
 			r[i+8] ^= math.Float64bits(f[i])
@@ -379,15 +399,17 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 
 	// Final digest: registers + XOR-fold of the whole scratchpad.
 	var fold [8]uint64
-	for i := 0; i < scratchWords; i += 8 {
-		fold[0] ^= vm.scratch[i]
-		fold[1] ^= vm.scratch[i+1]
-		fold[2] ^= vm.scratch[i+2]
-		fold[3] ^= vm.scratch[i+3]
-		fold[4] ^= vm.scratch[i+4]
-		fold[5] ^= vm.scratch[i+5]
-		fold[6] ^= vm.scratch[i+6]
-		fold[7] ^= vm.scratch[i+7]
+	if !foldScratchFast(scratch, &fold) {
+		for i := 0; i < scratchWords; i += 8 {
+			fold[0] ^= scratch[i]
+			fold[1] ^= scratch[i+1]
+			fold[2] ^= scratch[i+2]
+			fold[3] ^= scratch[i+3]
+			fold[4] ^= scratch[i+4]
+			fold[5] ^= scratch[i+5]
+			fold[6] ^= scratch[i+6]
+			fold[7] ^= scratch[i+7]
+		}
 	}
 	var out [4 + 32 + 16*8 + 8*8 + 8*8]byte
 	pos := 0

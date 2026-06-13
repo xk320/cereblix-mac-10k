@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	minerVersion     = "1.2.10"
+	minerVersion     = "1.2.11"
 	hostMain         = "https://cereblix.com"
 	hostRU           = "https://ru.cereblix.com"
 	updateVersionURL = "https://github.com/xk320/cereblix-mac-10k/releases/latest/download/miner-version.txt"
@@ -125,8 +125,8 @@ func recommendedThreadsFor(goos, goarch string, cpus int) int {
 	if goos == "darwin" && goarch == "arm64" {
 		// Apple Silicon still gains from modest overprovisioning, but the arm64
 		// AES fill fast path shifts the bottleneck toward VM/dataset work.
-		// macmini87's 10-core M4 peaked at 12 threads in public solo testing.
-		return (cpus*6 + 4) / 5
+		// macmini87's 10-core M4 peaked at 11 threads in public pool testing.
+		return (cpus*11 + 9) / 10
 	}
 	return cpus
 }

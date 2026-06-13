@@ -67,6 +67,49 @@ static inline uint8x16_t nm_aes128_encrypt(uint8x16_t block, const uint8x16_t rk
 	return veorq_u8(block, rk[10]);
 }
 
+static inline void nm_aes128_encrypt4(uint8x16_t *b0, uint8x16_t *b1, uint8x16_t *b2, uint8x16_t *b3, const uint8x16_t rk[11]) {
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[0]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[0]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[0]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[0]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[1]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[1]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[1]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[1]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[2]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[2]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[2]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[2]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[3]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[3]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[3]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[3]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[4]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[4]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[4]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[4]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[5]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[5]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[5]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[5]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[6]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[6]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[6]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[6]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[7]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[7]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[7]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[7]));
+	*b0 = vaesmcq_u8(vaeseq_u8(*b0, rk[8]));
+	*b1 = vaesmcq_u8(vaeseq_u8(*b1, rk[8]));
+	*b2 = vaesmcq_u8(vaeseq_u8(*b2, rk[8]));
+	*b3 = vaesmcq_u8(vaeseq_u8(*b3, rk[8]));
+	*b0 = veorq_u8(vaeseq_u8(*b0, rk[9]), rk[10]);
+	*b1 = veorq_u8(vaeseq_u8(*b1, rk[9]), rk[10]);
+	*b2 = veorq_u8(vaeseq_u8(*b2, rk[9]), rk[10]);
+	*b3 = veorq_u8(vaeseq_u8(*b3, rk[9]), rk[10]);
+}
+
 static void nm_fill_scratch_arm64(const uint8_t key32[32], uint64_t *dst, size_t words) {
 	uint8_t rkBytes[176];
 	uint8x16_t rk[11];
@@ -76,11 +119,35 @@ static void nm_fill_scratch_arm64(const uint8_t key32[32], uint64_t *dst, size_t
 		rk[i] = vld1q_u8(rkBytes + i * 16);
 	}
 	memcpy(&tail, key32 + 24, sizeof(tail));
-	for (uint64_t i = 0; i < (uint64_t)words; i += 2) {
-		uint64_t in[2] = {i, tail};
-		uint8x16_t block = vld1q_u8((const uint8_t *)in);
-		vst1q_u8((uint8_t *)(dst + i), nm_aes128_encrypt(block, rk));
+	for (uint64_t i = 0; i < (uint64_t)words; i += 8) {
+		uint64_t in0[2] = {i, tail};
+		uint64_t in1[2] = {i + 2, tail};
+		uint64_t in2[2] = {i + 4, tail};
+		uint64_t in3[2] = {i + 6, tail};
+		uint8x16_t b0 = vld1q_u8((const uint8_t *)in0);
+		uint8x16_t b1 = vld1q_u8((const uint8_t *)in1);
+		uint8x16_t b2 = vld1q_u8((const uint8_t *)in2);
+		uint8x16_t b3 = vld1q_u8((const uint8_t *)in3);
+		nm_aes128_encrypt4(&b0, &b1, &b2, &b3, rk);
+		vst1q_u8((uint8_t *)(dst + i), b0);
+		vst1q_u8((uint8_t *)(dst + i + 2), b1);
+		vst1q_u8((uint8_t *)(dst + i + 4), b2);
+		vst1q_u8((uint8_t *)(dst + i + 6), b3);
 	}
+}
+
+static void nm_fold_scratch_arm64(const uint64_t *src, size_t words, uint64_t out[8]) {
+	uint64x2_t a0 = vdupq_n_u64(0), a1 = vdupq_n_u64(0), a2 = vdupq_n_u64(0), a3 = vdupq_n_u64(0);
+	for (size_t i = 0; i < words; i += 8) {
+		a0 = veorq_u64(a0, vld1q_u64(src + i));
+		a1 = veorq_u64(a1, vld1q_u64(src + i + 2));
+		a2 = veorq_u64(a2, vld1q_u64(src + i + 4));
+		a3 = veorq_u64(a3, vld1q_u64(src + i + 6));
+	}
+	vst1q_u64(out, a0);
+	vst1q_u64(out + 2, a1);
+	vst1q_u64(out + 4, a2);
+	vst1q_u64(out + 6, a3);
 }
 */
 import "C"
@@ -98,3 +165,14 @@ func fillScratchFast(key [32]byte, scratch []uint64) bool {
 	return true
 }
 
+func foldScratchFast(scratch []uint64, fold *[8]uint64) bool {
+	if len(scratch) == 0 {
+		return true
+	}
+	C.nm_fold_scratch_arm64(
+		(*C.uint64_t)(unsafe.Pointer(&scratch[0])),
+		C.size_t(len(scratch)),
+		(*C.uint64_t)(unsafe.Pointer(&fold[0])),
+	)
+	return true
+}
