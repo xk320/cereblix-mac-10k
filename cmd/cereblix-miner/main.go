@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/big"
 	"net/http"
 	"os"
 	"os/exec"
@@ -64,8 +63,8 @@ type work struct {
 // config persists the user's choices next to the binary (cereblix-miner.json).
 type config struct {
 	Addr    string `json:"addr"`
-	Node    string `json:"node"`    // full base URL, incl. /pool/api or /api
-	Mode    string `json:"mode"`    // "pool" or "solo" (display only; Node is authoritative)
+	Node    string `json:"node"` // full base URL, incl. /pool/api or /api
+	Mode    string `json:"mode"` // "pool" or "solo" (display only; Node is authoritative)
 	Threads int    `json:"threads"`
 }
 
@@ -121,6 +120,22 @@ func buildNode(host, mode string) string {
 		return host + "/api"
 	}
 	return host + "/pool/api"
+}
+
+func recommendedThreads() int {
+	return recommendedThreadsFor(runtime.GOOS, runtime.GOARCH, runtime.NumCPU())
+}
+
+func recommendedThreadsFor(goos, goarch string, cpus int) int {
+	if cpus < 1 {
+		return 1
+	}
+	if goos == "darwin" && goarch == "arm64" {
+		// The arm64 C VM fast path moves the best M4 pool result back to the
+		// physical CPU count; macmini87's 10-core M4 peaked at 10 threads.
+		return cpus
+	}
+	return cpus
 }
 
 func read(r *bufio.Reader) string {
@@ -197,10 +212,10 @@ func wizard(in *bufio.Reader, cur config) config {
 	}
 
 	// 4) threads
-	def := runtime.NumCPU()
+	def := recommendedThreads()
 	fmt.Println()
-	fmt.Printf("Threads (CPU cores to use). This machine has %d. Tip: use physical cores and\n", def)
-	fmt.Println("leave 1 free for the system; more threads than cores does not help.")
+	fmt.Printf("Threads (CPU workers to use). Recommended for this machine: %d.\n", def)
+	fmt.Println("You can lower it if the Mac feels busy or gets too warm.")
 	fmt.Printf("Threads (default %d, Enter to accept): ", def)
 	c.Threads = def
 	if n, err := strconv.Atoi(read(in)); err == nil && n > 0 {
@@ -465,7 +480,7 @@ func main() {
 		cfg.Mode = modeFromURL(cfg.Node)
 	}
 	if cfg.Threads <= 0 {
-		cfg.Threads = runtime.NumCPU()
+		cfg.Threads = recommendedThreads()
 	}
 	for !core.ValidAddr(cfg.Addr) {
 		if !tty {
@@ -532,7 +547,14 @@ func fetchWork() error {
 		return fmt.Errorf("node returned no work")
 	}
 	old := current.Load()
-	if old == nil || old.ID != w.ID || old.Header != w.Header {
+	if old == nil ||
+		old.ID != w.ID ||
+		old.Header != w.Header ||
+		old.Target != w.Target ||
+		old.Seed != w.Seed ||
+		old.Epoch != w.Epoch ||
+		old.Height != w.Height ||
+		old.Extranonce != w.Extranonce {
 		current.Store(&w)
 	}
 	return nil
@@ -548,6 +570,7 @@ func workLoop() {
 }
 
 func mineThread(id uint64) {
+	prepareMineWorkerThread()
 	var vm *nm.VM
 	var vmSeed string
 	for {
@@ -567,7 +590,10 @@ func mineThread(id uint64) {
 			continue
 		}
 		targetRaw, _ := hex.DecodeString(w.Target)
-		target := new(big.Int).SetBytes(targetRaw)
+		if len(targetRaw) != 32 {
+			time.Sleep(time.Second)
+			continue
+		}
 
 		// Nonce layout: [extranonce:16][thread:8][counter:40]. The pool-assigned
 		// extranonce occupies the top 16 bits and stays FIXED, so every share this
@@ -578,24 +604,48 @@ func mineThread(id uint64) {
 		const counterMask = (uint64(1) << threadShift) - 1
 		base := (w.Extranonce&0xFFFF)<<enShift | (id&0xFF)<<threadShift
 		ctr := uint64(time.Now().UnixNano()) & counterMask
+		localHashes := uint64(0)
 		for i := 0; ; i++ {
 			nonce := base | (ctr & counterMask)
 			for b := 0; b < 8; b++ {
 				header[core.NonceOffset+b] = byte(nonce >> (8 * b))
 			}
 			hash := vm.Hash(header, w.Height)
-			hashCount.Add(1)
-			if new(big.Int).SetBytes(hash[:]).Cmp(target) <= 0 {
+			localHashes++
+			if localHashes == 256 {
+				hashCount.Add(localHashes)
+				localHashes = 0
+			}
+			if hashMeetsTargetBytes(hash, targetRaw) {
+				if localHashes > 0 {
+					hashCount.Add(localHashes)
+					localHashes = 0
+				}
 				submit(w.ID, nonce, w.Height)
 				fetchWork()
 				break
 			}
 			ctr++
 			if i%32 == 0 && current.Load() != w {
+				if localHashes > 0 {
+					hashCount.Add(localHashes)
+				}
 				break // new work arrived
 			}
 		}
 	}
+}
+
+func hashMeetsTargetBytes(hash [32]byte, target []byte) bool {
+	for i := 0; i < 32; i++ {
+		if hash[i] < target[i] {
+			return true
+		}
+		if hash[i] > target[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func submit(id string, nonce uint64, height uint64) {

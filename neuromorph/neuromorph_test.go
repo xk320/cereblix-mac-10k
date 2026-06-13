@@ -1,6 +1,7 @@
 package neuromorph
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"testing"
 )
@@ -89,5 +90,81 @@ func BenchmarkHashDataset(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		header[120] = byte(i)
 		vm.Hash(header, DatasetHeight)
+	}
+}
+
+func BenchmarkHashDatasetParallel(b *testing.B) {
+	p := DeriveParams(EpochSeed0())
+	NewVM(p).Hash(make([]byte, 124), DatasetHeight) // warm/generate the dataset
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		vm := NewVM(p)
+		header := make([]byte, 124)
+		i := byte(0)
+		for pb.Next() {
+			header[120] = i
+			vm.Hash(header, DatasetHeight)
+			i++
+		}
+	})
+}
+
+func benchmarkSeed() [32]byte {
+	var header [124]byte
+	for i := range header {
+		header[i] = byte(i * 7)
+	}
+	var seedInput [8 + len(header)]byte
+	copy(seedInput[:8], "nm-seed|")
+	copy(seedInput[8:], header[:])
+	return sha256.Sum256(seedInput[:])
+}
+
+func BenchmarkFillScratch(b *testing.B) {
+	p := DeriveParams(EpochSeed0())
+	vm := NewVM(p)
+	seed := benchmarkSeed()
+	b.SetBytes(ScratchBytes)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		seed[0] = byte(i)
+		vm.fillScratch(seed)
+	}
+}
+
+func BenchmarkGenProgram(b *testing.B) {
+	p := DeriveParams(EpochSeed0())
+	vm := NewVM(p)
+	seed := benchmarkSeed()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		seed[0] = byte(i)
+		vm.genProgram(seed)
+	}
+}
+
+func BenchmarkFoldScratch(b *testing.B) {
+	p := DeriveParams(EpochSeed0())
+	vm := NewVM(p)
+	vm.fillScratch(benchmarkSeed())
+	b.SetBytes(ScratchBytes)
+	b.ResetTimer()
+	var sink uint64
+	for i := 0; i < b.N; i++ {
+		var fold [8]uint64
+		for j := 0; j < scratchWords; j += 8 {
+			fold[0] ^= vm.scratch[j]
+			fold[1] ^= vm.scratch[j+1]
+			fold[2] ^= vm.scratch[j+2]
+			fold[3] ^= vm.scratch[j+3]
+			fold[4] ^= vm.scratch[j+4]
+			fold[5] ^= vm.scratch[j+5]
+			fold[6] ^= vm.scratch[j+6]
+			fold[7] ^= vm.scratch[j+7]
+		}
+		sink ^= fold[0]
+	}
+	if sink == 0 {
+		b.Logf("fold sink: %x", sink)
 	}
 }

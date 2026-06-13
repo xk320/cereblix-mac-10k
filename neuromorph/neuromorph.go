@@ -24,10 +24,11 @@ import (
 )
 
 const (
-	ScratchBytes = 2 << 20 // 2 MiB scratchpad, cache-resident on modern CPUs
-	scratchWords = ScratchBytes / 8
-	scratchMask  = uint64(ScratchBytes - 8) // 8-byte aligned addressing
-	numOps       = 15
+	ScratchBytes    = 2 << 20 // 2 MiB scratchpad, cache-resident on modern CPUs
+	scratchWords    = ScratchBytes / 8
+	scratchMask     = uint64(ScratchBytes - 8) // 8-byte aligned addressing
+	scratchWordMask = uint64(scratchWords - 1)
+	numOps          = 15
 
 	// Memory-hardness (activated at DatasetHeight). A 64 MiB read-only dataset,
 	// regenerated each epoch from the epoch seed and shared across all threads,
@@ -135,6 +136,8 @@ var (
 	dsCache = map[[16]byte][]uint64{}
 )
 
+var forceSlowProgram bool
+
 // getDataset returns the shared 64 MiB dataset for the given epoch key,
 // generating it (AES-CTR keystream) on first use. Deterministic across nodes.
 func getDataset(key [16]byte) []uint64 {
@@ -188,15 +191,19 @@ func NewVM(p *Params) *VM {
 
 // fillScratch fills the scratchpad with AES-CTR keystream seeded by `seed`.
 func (vm *VM) fillScratch(seed [32]byte) {
-	key := sha256.Sum256(append(seed[:], 0x53))
+	var keyInput [33]byte
+	copy(keyInput[:32], seed[:])
+	keyInput[32] = 0x53
+	key := sha256.Sum256(keyInput[:])
+	if fillScratchFast(key, vm.scratch) {
+		return
+	}
 	blk, _ := aes.NewCipher(key[:16])
-	var ctr, out [16]byte
-	copy(ctr[:], key[16:32])
-	buf := make([]byte, 16)
+	var in, out [16]byte
+	copy(in[8:16], key[24:32])
 	for i := 0; i < scratchWords; i += 2 {
-		binary.LittleEndian.PutUint64(buf[0:8], uint64(i))
-		copy(buf[8:16], ctr[8:16])
-		blk.Encrypt(out[:], buf)
+		binary.LittleEndian.PutUint64(in[0:8], uint64(i))
+		blk.Encrypt(out[:], in[:])
 		vm.scratch[i] = binary.LittleEndian.Uint64(out[0:8])
 		vm.scratch[i+1] = binary.LittleEndian.Uint64(out[8:16])
 	}
@@ -204,24 +211,29 @@ func (vm *VM) fillScratch(seed [32]byte) {
 
 // genProgram generates the per-nonce instruction stream.
 func (vm *VM) genProgram(seed [32]byte) {
-	key := sha256.Sum256(append(seed[:], 0x50))
+	var keyInput [33]byte
+	copy(keyInput[:32], seed[:])
+	keyInput[32] = 0x50
+	key := sha256.Sum256(keyInput[:])
+	if genProgramFast(key, &vm.params.OpTable, vm.prog) {
+		return
+	}
 	blk, _ := aes.NewCipher(key[:16])
 	var in, out [16]byte
 	copy(in[:], key[16:32])
-	stream := make([]byte, 0, vm.params.ProgSize*8)
-	for len(stream) < vm.params.ProgSize*8 {
+	for i := 0; i < vm.params.ProgSize; {
 		blk.Encrypt(out[:], in[:])
-		stream = append(stream, out[:]...)
 		copy(in[:], out[:])
 		binary.LittleEndian.PutUint64(in[0:8], binary.LittleEndian.Uint64(in[0:8])+1)
-	}
-	for i := 0; i < vm.params.ProgSize; i++ {
-		b := stream[i*8 : i*8+8]
-		vm.prog[i] = instr{
-			op:  vm.params.OpTable[b[0]],
-			dst: b[1],
-			src: b[2],
-			imm: binary.LittleEndian.Uint32(b[4:8]),
+		for off := 0; off < 16 && i < vm.params.ProgSize; off += 8 {
+			b := out[off : off+8]
+			vm.prog[i] = instr{
+				op:  vm.params.OpTable[b[0]],
+				dst: b[1] & 15,
+				src: b[2] & 15,
+				imm: binary.LittleEndian.Uint32(b[4:8]),
+			}
+			i++
 		}
 	}
 }
@@ -234,18 +246,44 @@ func normFloat(x uint64) float64 {
 	return math.Float64frombits(exp | mant)
 }
 
+func repairFloat(f *[8]float64, idx uint8, fallback uint64) {
+	v := f[idx&7]
+	b := math.Float64bits(v)
+	if b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+		f[idx&7] = normFloat(fallback | 1)
+	}
+}
+
 // Hash computes the NeuroMorph hash of `header` at block `height` under epoch
 // params. The header must already contain the nonce being tried. From
 // DatasetHeight onward the memory-hard dataset step is included; below it the
 // computation is byte-identical to v1 so pre-activation blocks stay valid.
 func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 	p := vm.params
-	seed := sha256.Sum256(append([]byte("nm-seed|"), header...))
+	prog := vm.prog
+	taken := vm.taken
+	scratch := vm.scratch
+	progSize := p.ProgSize
+	branchMask := p.BranchMask
+	rotSalt := p.RotSalt
+	var seedInput [8 + 256]byte
+	copy(seedInput[:8], "nm-seed|")
+	var seed [32]byte
+	if len(header) <= 256 {
+		copy(seedInput[8:], header)
+		seed = sha256.Sum256(seedInput[:8+len(header)])
+	} else {
+		h := sha256.New()
+		h.Write([]byte("nm-seed|"))
+		h.Write(header)
+		copy(seed[:], h.Sum(nil))
+	}
 
 	useDS := height >= DatasetHeight
 	if useDS && vm.dataset == nil {
 		vm.dataset = getDataset(p.DatasetKey)
 	}
+	dataset := vm.dataset
 
 	vm.fillScratch(seed)
 	vm.genProgram(seed)
@@ -257,134 +295,144 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 		r[i] = binary.LittleEndian.Uint64(seed[i*8 : i*8+8])
 	}
 	for i := 4; i < 16; i++ {
-		r[i] = vm.scratch[i] ^ p.RotSalt
+		r[i] = scratch[i] ^ rotSalt
 	}
 	for i := 0; i < 8; i++ {
-		f[i] = normFloat(vm.scratch[16+i])
+		f[i] = normFloat(scratch[16+i])
 	}
 
 	var aesIn, aesOut [16]byte
-	for loop := 0; loop < p.Loops; loop++ {
-		for i := range vm.taken {
-			vm.taken[i] = 0
-		}
-		pc := 0
-		for pc < p.ProgSize {
-			ins := &vm.prog[pc]
-			d := ins.dst & 15
-			s := ins.src & 15
-			switch ins.op {
-			case opIADD:
-				r[d] += r[s] + uint64(ins.imm)
-			case opIMUL:
-				r[d] *= r[s] | 1
-			case opIMULH:
-				hi, _ := bits.Mul64(r[d], r[s])
-				r[d] = hi ^ uint64(ins.imm)
-			case opIXOR:
-				r[d] ^= r[s] + p.RotSalt
-			case opIROTR:
-				r[d] = bits.RotateLeft64(r[d], -int((r[s]^uint64(ins.imm))&63))
-			case opINEG:
-				r[d] = ^r[d] + uint64(ins.imm)
-			case opFADD:
-				f[d&7] = f[d&7] + f[s&7]
-			case opFMUL:
-				f[d&7] = f[d&7] * f[s&7]
-			case opFDIV:
-				f[d&7] = f[d&7] / normFloat(math.Float64bits(f[s&7]))
-			case opFSQRT:
-				f[d&7] = math.Sqrt(math.Abs(f[d&7]))
-			case opLOAD:
-				addr := (r[s] + uint64(ins.imm)) & scratchMask
-				r[d] ^= vm.scratch[addr>>3]
-			case opSTORE:
-				addr := (r[d] + uint64(ins.imm)) & scratchMask
-				vm.scratch[addr>>3] ^= r[s] + uint64(loop)
-			case opCBRANCH:
-				// Data-dependent backward branch, bounded to guarantee halt.
-				if (r[d]+uint64(ins.imm))&p.BranchMask == 0 && vm.taken[pc] < 8 {
-					vm.taken[pc]++
-					back := int(ins.imm%31) + 1
-					pc -= back
-					if pc < 0 {
-						pc = 0
+	if forceSlowProgram || !executeProgramFast(p, prog, taken, scratch, dataset, &r, &f, useDS) {
+		for loop := 0; loop < p.Loops; loop++ {
+			for i := range taken {
+				taken[i] = 0
+			}
+			pc := 0
+			for pc < progSize {
+				ins := prog[pc]
+				d := ins.dst
+				s := ins.src
+				imm := uint64(ins.imm)
+				switch ins.op {
+				case opIADD:
+					r[d] += r[s] + imm
+				case opIMUL:
+					r[d] *= r[s] | 1
+				case opIMULH:
+					hi, _ := bits.Mul64(r[d], r[s])
+					r[d] = hi ^ imm
+				case opIXOR:
+					r[d] ^= r[s] + rotSalt
+				case opIROTR:
+					r[d] = bits.RotateLeft64(r[d], -int((r[s]^imm)&63))
+				case opINEG:
+					r[d] = ^r[d] + imm
+				case opFADD:
+					f[d&7] = f[d&7] + f[s&7]
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
 					}
-					continue
+				case opFMUL:
+					f[d&7] = f[d&7] * f[s&7]
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
+					}
+				case opFDIV:
+					f[d&7] = f[d&7] / normFloat(math.Float64bits(f[s&7]))
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
+					}
+				case opFSQRT:
+					f[d&7] = math.Sqrt(math.Abs(f[d&7]))
+					if b := math.Float64bits(f[d&7]); b&0x7FF0000000000000 == 0x7FF0000000000000 || b<<1 == 0 {
+						f[d&7] = normFloat(r[d] | 1)
+					}
+				case opLOAD:
+					addr := (r[s] + imm) & scratchMask
+					r[d] ^= scratch[addr>>3]
+				case opSTORE:
+					addr := (r[d] + imm) & scratchMask
+					scratch[addr>>3] ^= r[s] + uint64(loop)
+				case opCBRANCH:
+					// Data-dependent backward branch, bounded to guarantee halt.
+					if (r[d]+imm)&branchMask == 0 && taken[pc] < 8 {
+						taken[pc]++
+						back := int(ins.imm%31) + 1
+						pc -= back
+						if pc < 0 {
+							pc = 0
+						}
+						continue
+					}
+				case opAESR:
+					addr := (r[s] + imm) & scratchMask & ^uint64(15)
+					w := addr >> 3
+					binary.LittleEndian.PutUint64(aesIn[0:8], scratch[w])
+					binary.LittleEndian.PutUint64(aesIn[8:16], scratch[w+1])
+					vm.aes.Encrypt(aesOut[:], aesIn[:])
+					scratch[w] = binary.LittleEndian.Uint64(aesOut[0:8])
+					scratch[w+1] = binary.LittleEndian.Uint64(aesOut[8:16])
+					r[d] ^= scratch[w]
+				case opXDOM:
+					if ins.imm&1 == 0 {
+						r[d] ^= math.Float64bits(f[s&7])
+					} else {
+						f[d&7] = f[d&7] * normFloat(r[s])
+					}
 				}
-			case opAESR:
-				addr := (r[s] + uint64(ins.imm)) & scratchMask & ^uint64(15)
-				w := addr >> 3
-				binary.LittleEndian.PutUint64(aesIn[0:8], vm.scratch[w])
-				binary.LittleEndian.PutUint64(aesIn[8:16], vm.scratch[w+1])
-				vm.aes.Encrypt(aesOut[:], aesIn[:])
-				vm.scratch[w] = binary.LittleEndian.Uint64(aesOut[0:8])
-				vm.scratch[w+1] = binary.LittleEndian.Uint64(aesOut[8:16])
-				r[d] ^= vm.scratch[w]
-			case opXDOM:
-				if ins.imm&1 == 0 {
-					r[d] ^= math.Float64bits(f[s&7])
-				} else {
-					f[d&7] = f[d&7] * normFloat(r[s])
+				pc++
+			}
+			// Memory-hard step (post-activation): a chain of data-dependent random
+			// reads from the 64 MiB dataset. Each address depends on the previous
+			// read, so the walk is latency-bound and cannot be prefetched.
+			if useDS {
+				addr := (r[1] ^ rotSalt) & datasetMask
+				for k := 0; k < datasetReadsPerLoop; k++ {
+					v := dataset[addr>>3]
+					r[k&15] ^= v
+					addr = (v + r[(k+1)&15] + uint64(loop)) & datasetMask
 				}
 			}
-			// Keep floats finite without branching on hardware flags.
-			if ins.op >= opFADD && ins.op <= opFSQRT {
-				v := f[d&7]
-				if math.IsNaN(v) || math.IsInf(v, 0) || v == 0 {
-					f[d&7] = normFloat(r[d] | 1)
-				}
+			// Fold registers back into the scratchpad so loops cannot be skipped.
+			base := ((r[0] ^ uint64(loop)*0x9E3779B97F4A7C15) & scratchMask) >> 3
+			for i := 0; i < 16; i++ {
+				scratch[(base+uint64(i))&scratchWordMask] ^= r[i]
 			}
-			pc++
-		}
-		// Memory-hard step (post-activation): a chain of data-dependent random
-		// reads from the 64 MiB dataset. Each address depends on the previous
-		// read, so the walk is latency-bound and cannot be prefetched.
-		if useDS {
-			addr := (r[1] ^ p.RotSalt) & datasetMask
-			for k := 0; k < datasetReadsPerLoop; k++ {
-				v := vm.dataset[addr>>3]
-				r[k&15] ^= v
-				addr = (v + r[(k+1)&15] + uint64(loop)) & datasetMask
+			for i := 0; i < 8; i++ {
+				r[i+8] ^= math.Float64bits(f[i])
 			}
-		}
-		// Fold registers back into the scratchpad so loops cannot be skipped.
-		base := (r[0] ^ uint64(loop)*0x9E3779B97F4A7C15) & scratchMask >> 3
-		for i := 0; i < 16; i++ {
-			vm.scratch[(base+uint64(i))%scratchWords] ^= r[i]
-		}
-		for i := 0; i < 8; i++ {
-			r[i+8] ^= math.Float64bits(f[i])
 		}
 	}
 
 	// Final digest: registers + XOR-fold of the whole scratchpad.
 	var fold [8]uint64
-	for i := 0; i < scratchWords; i += 8 {
-		fold[0] ^= vm.scratch[i]
-		fold[1] ^= vm.scratch[i+1]
-		fold[2] ^= vm.scratch[i+2]
-		fold[3] ^= vm.scratch[i+3]
-		fold[4] ^= vm.scratch[i+4]
-		fold[5] ^= vm.scratch[i+5]
-		fold[6] ^= vm.scratch[i+6]
-		fold[7] ^= vm.scratch[i+7]
+	if !foldScratchFast(scratch, &fold) {
+		for i := 0; i < scratchWords; i += 8 {
+			fold[0] ^= scratch[i]
+			fold[1] ^= scratch[i+1]
+			fold[2] ^= scratch[i+2]
+			fold[3] ^= scratch[i+3]
+			fold[4] ^= scratch[i+4]
+			fold[5] ^= scratch[i+5]
+			fold[6] ^= scratch[i+6]
+			fold[7] ^= scratch[i+7]
+		}
 	}
-	out := make([]byte, 0, 4+32+16*8+8*8+8*8)
-	out = append(out, []byte("NMv1")...)
-	out = append(out, seed[:]...)
-	var tmp [8]byte
+	var out [4 + 32 + 16*8 + 8*8 + 8*8]byte
+	pos := 0
+	pos += copy(out[pos:], "NMv1")
+	pos += copy(out[pos:], seed[:])
 	for i := 0; i < 16; i++ {
-		binary.LittleEndian.PutUint64(tmp[:], r[i])
-		out = append(out, tmp[:]...)
+		binary.LittleEndian.PutUint64(out[pos:pos+8], r[i])
+		pos += 8
 	}
 	for i := 0; i < 8; i++ {
-		binary.LittleEndian.PutUint64(tmp[:], math.Float64bits(f[i]))
-		out = append(out, tmp[:]...)
+		binary.LittleEndian.PutUint64(out[pos:pos+8], math.Float64bits(f[i]))
+		pos += 8
 	}
 	for i := 0; i < 8; i++ {
-		binary.LittleEndian.PutUint64(tmp[:], fold[i])
-		out = append(out, tmp[:]...)
+		binary.LittleEndian.PutUint64(out[pos:pos+8], fold[i])
+		pos += 8
 	}
-	return sha256.Sum256(out)
+	return sha256.Sum256(out[:])
 }
