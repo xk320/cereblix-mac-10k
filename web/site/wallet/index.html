@@ -123,6 +123,7 @@ th{color:var(--mut);font-weight:600}
       <div><input id="sendAmount" data-ph="amount_ph" placeholder="Amount CRB" type="number" step="0.00000001" min="0"></div>
       <div><input id="sendFee" oninput="feeEdited=true" type="number" step="0.00000001" min="0" title="fee" placeholder="auto"></div>
     </div>
+    <div class="muted" style="margin-top:4px" id="feeHint"></div>
     <button id="sendBtn" onclick="sendTx()" data-i="sign_send">Sign and send</button>
     <div class="muted" style="margin-top:8px" data-i="fee_note">The fee goes to the block's miner. No minimum is set - but blocks fill by descending fee.</div>
   </div>
@@ -146,6 +147,7 @@ const API = location.pathname.replace(/wallet\/?.*/, '') + 'api';
 const UNIT = 1e8;
 let keys = null; // {secretKey: Uint8Array(64), publicKey: Uint8Array(32), address}
 let feeEdited = false; // becomes true once the user types a custom fee
+let feeFloor = 0, feeSuggested = 0; // latest network min / recommended fee (synapses)
 
 const $ = id => document.getElementById(id);
 const hex = b => Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -157,28 +159,44 @@ const L = {
     newkey_warn:"⚠️ Save your private key somewhere safe. It is the <b>only</b> way to recover your wallet. Lose the key - lose the coins.",
     saved_btn:"I saved the key - continue",balance:"Balance",your_addr:"Your address (click to copy):",show_key:"show private key",logout:"log out",
     send_crb:"Send CRB",send_to_ph:"Recipient address (crb1...)",amount_ph:"Amount CRB",sign_send:"Sign and send",
-    fee_note:"The fee is filled in automatically and stays tiny - it floats with network load. You can override it.",
+    fee_note:"The fee is set automatically from current network load - pay more to confirm sooner when busy. You can override it.",
+    fee_rec:(sug,floor,busy)=>`Recommended: <b>${sug}</b> CRB${busy?" (network busy - higher fee = sooner)":" (network clear)"} · min ${floor}`,
+    fee_auto:"use recommended",
+    fee_low:(floor)=>`fee below the network minimum (${floor} CRB)`,
     history:"History",h_block:"Block",h_type:"Type",h_addr:"Address",h_amount:"Amount",loading:"loading…",network:"Network",connecting:"connecting…",
     e_keylen:"key must be 128 hex characters",err:"Error",copied:"Address copied",
     show_confirm:"Show the private key? Make sure nobody is looking at the screen.",your_key:"Your private key:",
     logout_confirm:"Remove the key from this browser? Without a saved copy you'll lose access to the coins.",
     out:"− sent",in_:"+ received",empty_hist:"empty so far - mine or receive your first CRB",pend:"pending",unconf:"Unconfirmed",
-    net:(s)=>`height <b>${s.height}</b> · epoch ${s.epoch} · network hashrate ~<b>${Math.round(s.hashrate)}</b> H/s · supply ${fmt(s.supply)} CRB · reward ${fmt(s.reward)} CRB · mempool ${s.mempool}`,
+    net:(s)=>`height <b>${s.height}</b> · epoch ${s.epoch} · network hashrate ~<b>${((+s.hashrate||0)/1e6).toFixed(2)}</b> MH/s · supply ${fmt(s.supply)} CRB · reward ${fmt(s.reward)} CRB · mempool ${s.mempool}`,
     node_down:"node unavailable: ",bad_to:"invalid recipient address",bad_amount:"invalid amount",
+    speedup:"speed up",cancel_tx:"cancel",
+    speedup_confirm:(o,n)=>`Re-broadcast this payment with a higher fee so it confirms sooner?\n\nFee: ${o} → ${n} CRB (same recipient, same amount).`,
+    cancel_confirm:(n)=>`Cancel this pending transaction?\n\nIt will be replaced by a tiny self-send (fee ${n} CRB) at the same nonce, so the original payment never executes. Only works while it is still unconfirmed.`,
+    sped_up:(id)=>`Speed-up sent (TX ${id}…) - higher fee, same nonce`,
+    canceled:(id)=>`Cancel sent (TX ${id}…) - the original is voided once this confirms`,
     sent:(id)=>`Sent! TX ${id}… - will be in the next block`},
   ru:{nav_home:"Главная",nav_mine:"Майнинг",nav_pool:"Пул",nav_explorer:"Обозреватель",nav_wallet:"Кошелёк",nav_faucet:"Кран",nav_roadmap:"Дорожная карта",about:"о проекте",wallet:"Кошелёк",setup_p:"Ключи создаются и хранятся <b>только в вашем браузере</b>. Сервер никогда не видит приватный ключ - подпись транзакций происходит локально (ed25519).",
     create:"Создать новый кошелёк",import:"Импортировать ключ",import_ph:"Приватный ключ (128 hex-символов)",import_btn:"Импортировать",
     newkey_warn:"⚠️ Сохраните приватный ключ в надёжном месте. Это <b>единственный</b> способ восстановить кошелёк. Потеряете ключ - потеряете монеты.",
     saved_btn:"Я сохранил ключ - продолжить",balance:"Баланс",your_addr:"Ваш адрес (нажмите, чтобы скопировать):",show_key:"показать приватный ключ",logout:"выйти",
     send_crb:"Отправить CRB",send_to_ph:"Адрес получателя (crb1...)",amount_ph:"Сумма CRB",sign_send:"Подписать и отправить",
-    fee_note:"Комиссия подставляется автоматически и остаётся крошечной - плавает от загрузки сети. Можно изменить вручную.",
+    fee_note:"Комиссия выставляется автоматически по текущей загрузке сети - при загрузке платите больше, чтобы подтвердиться быстрее. Можно изменить вручную.",
+    fee_rec:(sug,floor,busy)=>`Рекомендуется: <b>${sug}</b> CRB${busy?" (сеть загружена - выше комса = быстрее)":" (сеть свободна)"} · минимум ${floor}`,
+    fee_auto:"взять рекомендованную",
+    fee_low:(floor)=>`комиссия ниже сетевого минимума (${floor} CRB)`,
     history:"История",h_block:"Блок",h_type:"Тип",h_addr:"Адрес",h_amount:"Сумма",loading:"загрузка…",network:"Сеть",connecting:"подключение…",
     e_keylen:"ключ должен быть 128 hex-символов",err:"Ошибка",copied:"Адрес скопирован",
     show_confirm:"Показать приватный ключ? Убедитесь, что никто не смотрит на экран.",your_key:"Ваш приватный ключ:",
     logout_confirm:"Удалить ключ из этого браузера? Без сохранённой копии ключа вы потеряете доступ к монетам.",
     out:"− отправка",in_:"+ получение",empty_hist:"пока пусто - намайните или получите первые CRB",pend:"в мемпуле",unconf:"Неподтверждённый",
-    net:(s)=>`высота <b>${s.height}</b> · эпоха ${s.epoch} · хэшрейт сети ~<b>${Math.round(s.hashrate)}</b> H/s · эмиссия ${fmt(s.supply)} CRB · награда за блок ${fmt(s.reward)} CRB · мемпул ${s.mempool}`,
+    net:(s)=>`высота <b>${s.height}</b> · эпоха ${s.epoch} · хэшрейт сети ~<b>${((+s.hashrate||0)/1e6).toFixed(2)}</b> MH/s · эмиссия ${fmt(s.supply)} CRB · награда за блок ${fmt(s.reward)} CRB · мемпул ${s.mempool}`,
     node_down:"нода недоступна: ",bad_to:"некорректный адрес получателя",bad_amount:"некорректная сумма",
+    speedup:"ускорить",cancel_tx:"отменить",
+    speedup_confirm:(o,n)=>`Переотправить этот платёж с большей комиссией, чтобы он подтвердился быстрее?\n\nКомиссия: ${o} → ${n} CRB (тот же получатель и сумма).`,
+    cancel_confirm:(n)=>`Отменить эту неподтверждённую транзакцию?\n\nОна будет заменена крошечной самоотправкой (комиссия ${n} CRB) с тем же nonce, и исходный платёж не выполнится. Работает, только пока транзакция в мемпуле.`,
+    sped_up:(id)=>`Ускорение отправлено (TX ${id}…) - выше комиссия, тот же nonce`,
+    canceled:(id)=>`Отмена отправлена (TX ${id}…) - исходная аннулируется после подтверждения`,
     sent:(id)=>`Отправлено! TX ${id}… - попадёт в ближайший блок`}
 };
 let LANG = (function(){ const s=localStorage.getItem('lang'); return (s==='ru'||s==='en')?s:((navigator.language||'en').toLowerCase().startsWith('ru')?'ru':'en'); })();
@@ -324,12 +342,20 @@ async function refresh(){
     let mp = []; try { mp = await api('/mempool') || []; } catch(e){}
     const pendBadge = `<span style="background:#7a5b12;color:#ffd97a;border-radius:6px;padding:1px 6px;font-size:11px">${t('pend')}</span>`;
     let delta = 0;
+    window._pendOut = {}; // nonce -> {to,amount,fee} for replace-by-fee actions
     const pr = (mp||[]).filter(x => x.to === keys.address || x.from_pub === myPub).map(x => {
       const out = x.from_pub === myPub;
       const peer = out ? x.to : ('crb1' + hex(sha256(unhex(x.from_pub)).slice(0,20)));
       delta += out ? -(x.amount + x.fee) : x.amount;
+      let actions = '';
+      if (out) {
+        window._pendOut[x.nonce] = { to: x.to, amount: x.amount, fee: x.fee };
+        actions = `<div style="margin-top:3px;font-size:12px">`
+          + `<a href="#" onclick="speedUp(${x.nonce});return false">⚡ ${t('speedup')}</a> · `
+          + `<a href="#" onclick="cancelTx(${x.nonce});return false">✖ ${t('cancel_tx')}</a></div>`;
+      }
       return `<tr><td>${pendBadge}</td><td class="${out?'out':'in'}">${out?t('out'):t('in_')}</td>
-        <td class="mono" style="font-size:12px">${peer.slice(0,16)}…</td>
+        <td class="mono" style="font-size:12px">${peer.slice(0,16)}…${actions}</td>
         <td class="${out?'out':'in'}">${out?'−':'+'}${fmt(x.amount)}</td></tr>`;
     }).join('');
     $('balance').textContent = fmt(b.balance);
@@ -347,14 +373,40 @@ async function refresh(){
   } catch(e){ console.error(e); }
 }
 
+const toCrb = s => (s / UNIT).toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+function resetFee(){ feeEdited = false; netInfo(); }
+
 async function netInfo(){
   try {
     const s = await api('/status');
     $('netinfo').innerHTML = t('net')(s);
-    if (!feeEdited && s.fee_suggested != null) {
-      $('sendFee').value = (s.fee_suggested / UNIT).toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+    if (s.fee_suggested != null) {
+      feeSuggested = s.fee_suggested;
+      feeFloor = (s.fee_floor != null) ? s.fee_floor : s.fee_suggested;
+      if (!feeEdited) $('sendFee').value = toCrb(s.fee_suggested);
+      const busy = s.fee_suggested > feeFloor;
+      const fh = $('feeHint');
+      if (fh) fh.innerHTML = t('fee_rec')(toCrb(s.fee_suggested), toCrb(feeFloor), busy)
+        + (feeEdited ? ` · <a href="#" onclick="resetFee();return false">${t('fee_auto')}</a>` : '');
     }
   } catch(e){ $('netinfo').textContent = t('node_down') + e.message; }
+}
+
+// signAndPost builds, locally signs and broadcasts one transaction. nonce is
+// explicit so a replacement can reuse a pending tx's nonce (replace-by-fee).
+async function signAndPost(to, amount, fee, nonce){
+  const st = await api('/status');
+  const tx = { from_pub: hex(keys.publicKey), to, amount, fee, nonce };
+  // Consensus signing payload - must match the Go node's Tx.signingPayloadFor
+  // verbatim ("cerebra-tx-v1"; a protocol constant, not the brand). From
+  // chain_id_height the payload also binds chain_id (the genesis hash) so a
+  // signature cannot be replayed onto a fork/testnet. Sign for the next block.
+  const nextHeight = (st.height || 0) + 1;
+  const payload = (st.chain_id && nextHeight >= st.chain_id_height)
+    ? `cerebra-tx-v1|${st.chain_id}|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`
+    : `cerebra-tx-v1|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`;
+  tx.sig = hex(nacl.sign.detached(new TextEncoder().encode(payload), keys.secretKey));
+  return api('/tx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(tx)});
 }
 
 async function sendTx(){
@@ -364,25 +416,49 @@ async function sendTx(){
     const fee = Math.round(parseFloat($('sendFee').value || '0') * UNIT);
     if (!/^crb1[0-9a-f]{40}$/.test(to)) throw new Error(t('bad_to'));
     if (!(amount > 0)) throw new Error(t('bad_amount'));
+    if (feeFloor && fee < feeFloor) throw new Error(t('fee_low')(toCrb(feeFloor)));
     const b = await api('/balance?addr=' + keys.address);
-    const st = await api('/status');
-    const tx = { from_pub: hex(keys.publicKey), to, amount, fee, nonce: b.nonce };
-    // Consensus signing payload - must match the Go node's Tx.signingPayloadFor
-    // verbatim ("cerebra-tx-v1"; a protocol constant, not the brand). From
-    // chain_id_height the payload also binds chain_id (the genesis hash) so a
-    // signature cannot be replayed onto a fork/testnet. Sign for the next block.
-    const nextHeight = (st.height || 0) + 1;
-    const payload = (st.chain_id && nextHeight >= st.chain_id_height)
-      ? `cerebra-tx-v1|${st.chain_id}|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`
-      : `cerebra-tx-v1|${tx.from_pub}|${tx.to}|${tx.amount}|${tx.fee}|${tx.nonce}`;
-    tx.sig = hex(nacl.sign.detached(new TextEncoder().encode(payload), keys.secretKey));
     $('sendBtn').disabled = true;
-    const res = await api('/tx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(tx)});
+    const res = await signAndPost(to, amount, fee, b.nonce);
     toast(t('sent')(res.txid.slice(0,16)));
     $('sendTo').value = ''; $('sendAmount').value = '';
     setTimeout(refresh, 2000);
   } catch(e){ toast(t('err') + ': ' + e.message, 6000); }
   finally { $('sendBtn').disabled = false; }
+}
+
+// bumpFee returns a fee that clears the node's replace-by-fee bar (old +10%, at
+// least +1 synapse), or the current network recommendation if it is higher.
+function bumpFee(oldFee){
+  let mn = oldFee + Math.floor(oldFee/10);
+  if (mn <= oldFee) mn = oldFee + 1;
+  return Math.max(mn, feeSuggested||0);
+}
+
+// speedUp / cancelTx replace a still-pending outgoing tx via replace-by-fee:
+// speed-up re-sends the same payment at a higher fee; cancel replaces it with a
+// 0-value self-send at the same nonce so the original never executes.
+async function speedUp(nonce){
+  const p = (window._pendOut||{})[nonce]; if (!p) return;
+  const fee = bumpFee(p.fee);
+  if (!confirm(t('speedup_confirm')(toCrb(p.fee), toCrb(fee)))) return;
+  try {
+    const res = await signAndPost(p.to, p.amount, fee, +nonce);
+    toast(t('sped_up')(res.txid.slice(0,16)));
+    setTimeout(refresh, 1500);
+  } catch(e){ toast(t('err') + ': ' + e.message, 6000); }
+}
+async function cancelTx(nonce){
+  const p = (window._pendOut||{})[nonce]; if (!p) return;
+  const fee = bumpFee(p.fee);
+  if (!confirm(t('cancel_confirm')(toCrb(fee)))) return;
+  try {
+    // Consensus rejects a 0-amount tx, so cancel with the smallest valid amount
+    // (1 synapse) paid back to yourself - only the fee is actually spent.
+    const res = await signAndPost(keys.address, 1, fee, +nonce);
+    toast(t('canceled')(res.txid.slice(0,16)));
+    setTimeout(refresh, 1500);
+  } catch(e){ toast(t('err') + ': ' + e.message, 6000); }
 }
 
 (async function init(){

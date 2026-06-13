@@ -146,7 +146,10 @@ const t=k=>LANG==='en'?(EN[k]??k):(I.ru[k]??EN[k]??k);
 const POOL='pool/api', NODE='api';
 const $=id=>document.getElementById(id);
 const U=1e8;
-function fmtHR(h){h=+h||0; return (h/1e3).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' kH/s';}
+// Network & pool TOTALS are always shown in MH/s (fixed unit).
+function fmtMH(h){h=+h||0; return (h/1e6).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' MH/s';}
+// Per-miner hashrate scales: kH/s normally, MH/s once a miner crosses 1 MH/s.
+function fmtHR(h){h=+h||0; return h>=1e6 ? (h/1e6).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' MH/s' : (h/1e3).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' kH/s';}
 function fmtCRB(v){return ((+v||0)/U).toLocaleString(undefined,{maximumFractionDigits:4})+' CRB';}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function shortAddr(a){return a.slice(0,10)+'…'+a.slice(-6);}
@@ -171,10 +174,10 @@ function render(){
 function renderStats(s){
   const fee=((+s.fee_permil||0)/10).toFixed(1);
   const tiles=[
-    ['k_pool_hr', fmtHR(s.pool_hashrate)],
-    ['k_net_hr', NET&&NET.hashrate!=null? fmtHR(NET.hashrate):'—'],
+    ['k_pool_hr', fmtMH(s.pool_hashrate)],
+    ['k_net_hr', NET&&NET.hashrate!=null? fmtMH(NET.hashrate):'—'],
     ['k_blocks', String(s.blocks_found)],
-    ['k_miners', String((Array.isArray(s.miners)?s.miners:[]).filter(m=>(+m.hashrate||0)>0||(+m.owed||0)>0).length)],
+    ['k_miners', String((Array.isArray(s.miners)?s.miners:[]).filter(m=>(+m.hashrate||0)>0||(+m.owed||0)>=(+s.min_payout||0)).length)],
     ['k_fee', fee+'<small>%</small>'],
     ['k_paid', fmtCRB(s.total_paid)],
     ['k_owed', fmtCRB(s.total_owed)],
@@ -187,10 +190,10 @@ function renderStats(s){
 }
 function renderMiners(s){
   const a=$('addr'), me=(a?a.value.trim():'').toLowerCase();
-  // show only real participants: currently hashing OR with a pending balance.
-  // Idle past miners (0 H/s and nothing owed) are historical - they earn nothing
-  // and only clutter the list, so they're hidden.
-  const miners=(Array.isArray(s.miners)?s.miners:[]).filter(m=>(+m.hashrate||0)>0||(+m.owed||0)>0).sort((x,y)=>((+y.hashrate||0)-(+x.hashrate||0))||((+y.shares||0)-(+x.shares||0)));
+  // show only real participants: currently hashing OR with a PAYABLE pending
+  // balance (owed >= min_payout). Idle miners with only sub-threshold dust owed
+  // (or fully paid out) are historical clutter, so they're hidden.
+  const miners=(Array.isArray(s.miners)?s.miners:[]).filter(m=>(+m.hashrate||0)>0||(+m.owed||0)>=(+s.min_payout||0)).sort((x,y)=>((+y.hashrate||0)-(+x.hashrate||0))||((+y.shares||0)-(+x.shares||0)));
   const mb=$('minerbox'); if(!mb) return;
   if(!miners.length){ mb.innerHTML='<div class="empty">'+esc(t('none'))+'</div>'; return; }
   const rows=miners.map(m=>{

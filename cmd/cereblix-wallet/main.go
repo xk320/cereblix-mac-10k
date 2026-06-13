@@ -376,6 +376,10 @@ func dispatch(args []string) error {
 		return cmdReceive()
 	case "send":
 		return cmdSend(rest)
+	case "speedup", "bump":
+		return rbfReplace(rest, false)
+	case "cancel":
+		return rbfReplace(rest, true)
 	case "history":
 		return cmdHistory(rest)
 	case "import":
@@ -418,6 +422,8 @@ func printHelp() {
   balance [addr|label]     total balance, or one address
   receive                  show an address to receive CRB
   send <to> <amount> [fee] [from]   sign locally and broadcast
+  speedup <txid> [fee]     re-broadcast a pending tx at a higher fee (confirm sooner)
+  cancel <txid> [fee]      void a still-pending tx (replace it with a 0-value self-send)
   history [addr|label]     recent transactions
   import <privkey> [label] import an existing 128-hex private key
   export <addr|label>      reveal a private key
@@ -561,6 +567,77 @@ func pickFundedAddr(need uint64) (*KeyEntry, error) {
 		}
 	}
 	return nil, errors.New("no single address has enough balance (specify one or top up)")
+}
+
+// rbfReplace re-broadcasts a still-pending transaction at a higher fee. With
+// cancel=false it speeds the same payment up; with cancel=true it voids it by
+// replacing it with a 0-value self-send at the same nonce. Relies on the node's
+// replace-by-fee policy (same sender+nonce, new fee >= old fee + 10%).
+func rbfReplace(rest []string, cancel bool) error {
+	verb := "speedup"
+	if cancel {
+		verb = "cancel"
+	}
+	if len(rest) < 1 {
+		return fmt.Errorf("usage: %s <txid> [fee]", verb)
+	}
+	var loc core.TxLocation
+	if err := apiGet("/tx?id="+rest[0], &loc); err != nil {
+		return err
+	}
+	if loc.Coinbase {
+		return errors.New("cannot replace a coinbase transaction")
+	}
+	if !loc.Pending {
+		return errors.New("transaction is already confirmed - it can no longer be replaced")
+	}
+	from := store.find(loc.From)
+	if from == nil {
+		return fmt.Errorf("sender %s is not in this wallet - only its owner can replace it", short(loc.From))
+	}
+	// Clear the node's replace-by-fee bar: old fee + 10% (at least +1 synapse).
+	minFee := loc.Fee + loc.Fee/10
+	if minFee <= loc.Fee {
+		minFee = loc.Fee + 1
+	}
+	fee := minFee
+	if s := suggestedFee(); s > fee { // if the network got busier, bid the recommendation
+		fee = s
+	}
+	if len(rest) >= 2 {
+		f, err := toAmount(rest[1])
+		if err != nil {
+			return err
+		}
+		if f < minFee {
+			return fmt.Errorf("fee too low: need >= %s to replace (old fee + 10%%)", crb(minFee))
+		}
+		fee = f
+	}
+	to, amount := loc.To, loc.Amount
+	if cancel {
+		// Void it: replace with a 1-synapse self-send at the same nonce + higher
+		// fee. The consensus rules reject a 0-amount tx, so we use the smallest
+		// valid amount; since it pays back to you, the only real cost is the fee.
+		to, amount = from.Addr, 1
+	}
+	priv, _ := hex.DecodeString(from.Priv)
+	tx := &core.Tx{To: to, Amount: amount, Fee: fee, Nonce: loc.Nonce}
+	core.SignTxAt(tx, ed25519.PrivateKey(priv), nextBlockHeight())
+	var out struct {
+		TxID string `json:"txid"`
+	}
+	if err := apiPost("/tx", tx, &out); err != nil {
+		return err
+	}
+	if cancel {
+		fmt.Printf("cancel sent: a tiny self-send at nonce %d (fee %s) will replace the pending tx so it never executes.\n  new txid: %s\n",
+			loc.Nonce, crb(fee), out.TxID)
+	} else {
+		fmt.Printf("speed-up sent: same payment at nonce %d, fee raised %s -> %s.\n  new txid: %s\n",
+			loc.Nonce, crb(loc.Fee), crb(fee), out.TxID)
+	}
+	return nil
 }
 
 func cmdHistory(rest []string) error {

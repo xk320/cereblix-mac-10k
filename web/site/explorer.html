@@ -118,7 +118,7 @@ tr:last-child td{border-bottom:0}
 const T = {
   en:{home:"Home",mine:"Mine",pool:"Pool",about:"About",explorer:"Explorer",rich:"Rich list",mempool:"Mempool",wallet:"Wallet",faucet:"Faucet",roadmap:"Roadmap",find:"Search",
     ph:"Search: height / block hash / txid / crb1 address…",
-    st_height:"height",st_hr:"H/s network",st_supply:"CRB supply",st_reward:"reward",st_epoch:"epoch",st_age:"last block",st_mp:"mempool",
+    st_height:"height",st_hr:"MH/s network",st_supply:"CRB supply",st_reward:"reward",st_epoch:"epoch",st_age:"last block",st_mp:"mempool",
     node_down:"node unavailable",latest:"Latest blocks",auto10:"refresh every 10s",
     c_time:"time",c_hash:"hash",c_tx:"tx",c_miner:"miner",c_reward:"reward",c_from:"from",c_to:"to",c_amount:"amount",c_fee:"fee",c_block:"block",c_type:"type",c_peer:"counterparty",c_txid:"txid",
     block:"Block",conf:"conf.",prevblock:"prev block",depth:"depth",txn:"transactions",outsum:"total outputs",fees:"fees",target:"target",nonce:"nonce",txroot:"tx root",
@@ -130,7 +130,7 @@ const T = {
     notfound:"Nothing found",copy:"copy"},
   ru:{home:"Главная",mine:"Майнинг",pool:"Пул",about:"О проекте",explorer:"Обозреватель",rich:"Богатейшие",mempool:"Мемпул",wallet:"Кошелёк",faucet:"Кран",roadmap:"Дорожная карта",find:"Найти",
     ph:"Поиск: высота / хэш блока / txid / адрес crb1…",
-    st_height:"высота",st_hr:"H/s сети",st_supply:"CRB эмиссия",st_reward:"награда",st_epoch:"эпоха",st_age:"посл. блок",st_mp:"мемпул",
+    st_height:"высота",st_hr:"MH/s сети",st_supply:"CRB эмиссия",st_reward:"награда",st_epoch:"эпоха",st_age:"посл. блок",st_mp:"мемпул",
     node_down:"нода недоступна",latest:"Последние блоки",auto10:"обновление каждые 10 с",
     c_time:"время",c_hash:"хэш",c_tx:"tx",c_miner:"майнер",c_reward:"награда",c_from:"от",c_to:"кому",c_amount:"сумма",c_fee:"комиссия",c_block:"блок",c_type:"тип",c_peer:"контрагент",c_txid:"txid",
     block:"Блок",conf:"подтв.",prevblock:"пред. блок",depth:"глубина",txn:"транзакций",outsum:"сумма выходов",fees:"комиссии",target:"target",nonce:"nonce",txroot:"tx root",
@@ -182,7 +182,7 @@ async function loadStats(){
     netHeight = s.height;
     $('stats').innerHTML = `
       <div class="stat"><b>${s.height.toLocaleString(loc())}</b><span>${t('st_height')}</span></div>
-      <div class="stat"><b>${Math.round(s.hashrate).toLocaleString(loc())}</b><span>${t('st_hr')}</span></div>
+      <div class="stat"><b>${((+s.hashrate||0)/1e6).toLocaleString(loc(),{minimumFractionDigits:2,maximumFractionDigits:2})}</b><span>${t('st_hr')}</span></div>
       <div class="stat"><b>${(s.supply/UNIT).toLocaleString(loc(),{maximumFractionDigits:0})}</b><span>${t('st_supply')}</span></div>
       <div class="stat"><b>${(s.reward/UNIT)}</b><span>${t('st_reward')}</span></div>
       <div class="stat"><b>${s.epoch}</b><span>${t('st_epoch')}</span></div>
