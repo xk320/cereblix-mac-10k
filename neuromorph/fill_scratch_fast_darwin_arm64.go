@@ -263,12 +263,14 @@ static void nm_execute_program_arm64(
 ) {
 	uint8_t rkBytes[176];
 	uint8x16_t rk[11];
+	uint16_t taken_seen[768] = {0};
+	uint8_t taken_count[768];
 	nm_expand_aes128(aes_key, rkBytes);
 	for (int i = 0; i < 11; i++) {
 		rk[i] = vld1q_u8(rkBytes + i * 16);
 	}
 	for (uint32_t loop = 0; loop < loops; loop++) {
-		memset(taken, 0, prog_size);
+		uint16_t loop_tag = (uint16_t)(loop + 1);
 		int pc = 0;
 		while (pc < (int)prog_size) {
 			nm_instr ins = prog[pc];
@@ -334,14 +336,22 @@ static void nm_execute_program_arm64(
 				break;
 			}
 			case 12:
-				if (((r[d] + imm) & branch_mask) == 0 && taken[pc] < 8) {
-					taken[pc]++;
+				if (((r[d] + imm) & branch_mask) == 0) {
+					uint8_t count = 0;
+					if (taken_seen[pc] == loop_tag) {
+						count = taken_count[pc];
+					} else {
+						taken_seen[pc] = loop_tag;
+					}
+					if (count < 8) {
+						taken_count[pc] = count + 1;
 					int back = (int)(ins.imm % 31) + 1;
 					pc -= back;
 					if (pc < 0) {
 						pc = 0;
 					}
 					continue;
+				}
 				}
 				break;
 			case 13: {
