@@ -28,10 +28,11 @@ import (
 )
 
 const (
-	syncInterval   = 3 * time.Second  // poll fallback; faster catch-up = fewer orphans for poll-only nodes
-	subscribeHold  = 20 * time.Second // how long the server holds a /p2p/subscribe long-poll (< server WriteTimeout)
-	batchBlocks    = 200
-	templateMaxAge = 8 * time.Second
+	syncInterval        = 3 * time.Second  // poll fallback; faster catch-up = fewer orphans for poll-only nodes
+	subscribeHold       = 20 * time.Second // how long the server holds a /p2p/subscribe long-poll (< server WriteTimeout)
+	rebroadcastInterval = 60 * time.Second // periodic re-flood of unconfirmed mempool txns (gossip backstop)
+	batchBlocks         = 200
+	templateMaxAge      = 8 * time.Second
 )
 
 // fallbackSeeds are baked-in public nodes used to bootstrap and to keep the mesh
@@ -467,11 +468,39 @@ func (n *Node) broadcastBlock(b *core.Block) {
 	}
 }
 
-func (n *Node) broadcastTx(t *core.Tx) {
+func (n *Node) broadcastTx(t *core.Tx) { n.broadcastTxExcept(t, "") }
+
+// broadcastTxExcept floods a tx to every peer except `exclude` (the peer we
+// received it from). Multi-hop gossip: a receiver that accepts a NEW tx re-floods
+// it in turn, so it reaches block producers more than one hop away. Dedup in
+// AddTx (a tx already in the mempool is rejected) stops the flood once everyone
+// has it - no loops.
+func (n *Node) broadcastTxExcept(t *core.Tx, exclude string) {
 	for _, p := range n.peerList() {
+		if p == exclude {
+			continue
+		}
 		go func(peer string) {
 			_ = n.postJSON(peer+"/p2p/tx", t, nil)
 		}(p)
+	}
+}
+
+// rebroadcastLoop re-floods our unconfirmed mempool to peers periodically. The
+// backstop: a tx submitted while we had no live peers (e.g. right after a
+// restart) still propagates once peers connect, and any producer that missed the
+// initial flood eventually receives it. Cheap - peers that already hold a tx
+// dup-reject it and don't re-flood.
+func (n *Node) rebroadcastLoop() {
+	for {
+		select {
+		case <-n.stop:
+			return
+		case <-time.After(rebroadcastInterval):
+		}
+		for _, t := range n.Chain.MempoolTxs() {
+			n.broadcastTx(t)
+		}
 	}
 }
 
@@ -687,6 +716,10 @@ func (n *Node) P2PHandler() http.Handler {
 			writeErr(w, 400, err.Error())
 			return
 		}
+		// Accepted a NEW (or replacement) tx -> re-flood to our other peers so it
+		// reaches producers beyond one hop. Exclude the sender; dedup stops loops.
+		from := strings.TrimRight(r.Header.Get("X-Cerebra-Peer"), "/")
+		go n.broadcastTxExcept(&t, from)
 		writeJSON(w, map[string]string{"result": "accepted"})
 	})
 	mux.HandleFunc("/p2p/peers", func(w http.ResponseWriter, r *http.Request) {
@@ -1288,5 +1321,6 @@ func (n *Node) Serve(p2pAddr, rpcAddr string) error {
 	}()
 	go n.SyncLoop()
 	go n.subscribeManager()
+	go n.rebroadcastLoop()
 	return <-errc
 }
