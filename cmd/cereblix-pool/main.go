@@ -139,15 +139,18 @@ func hashesPerShare() float64 {
 // ------------------------------------------------------------- accounting
 
 type state struct {
-	mu       sync.Mutex
-	Shares   map[string]float64 `json:"-"`       // current round (ephemeral)
-	Owed     map[string]uint64  `json:"owed"`    // accrued, not yet paid
-	Paid     map[string]uint64  `json:"paid"`    // lifetime paid
-	Found    int                `json:"found"`   // blocks found by the pool
-	RoundShares float64         `json:"-"`
+	mu          sync.Mutex
+	Shares      map[string]float64   `json:"-"`        // current round (ephemeral)
+	Earned      map[string]uint64    `json:"earned"`   // cumulative credited - SOURCE OF TRUTH
+	InFlight    map[string]*inflight `json:"inflight"` // payouts sent, awaiting confirmation
+	Owed        map[string]uint64    `json:"owed"`     // DERIVED cache: Earned - on-chain Delivered
+	Paid        map[string]uint64    `json:"paid"`     // DERIVED cache: on-chain Delivered
+	Found       int                  `json:"found"`    // blocks found by the pool
+	RoundShares float64              `json:"-"`
+	ChainHeight uint64               `json:"-"`        // last reconciled chain height
 }
 
-var st = &state{Shares: map[string]float64{}, Owed: map[string]uint64{}, Paid: map[string]uint64{}}
+var st = &state{Shares: map[string]float64{}, Earned: map[string]uint64{}, InFlight: map[string]*inflight{}, Owed: map[string]uint64{}, Paid: map[string]uint64{}}
 
 func (s *state) load() {
 	if raw, err := os.ReadFile(statePath); err == nil {
@@ -158,6 +161,23 @@ func (s *state) load() {
 	}
 	if s.Paid == nil {
 		s.Paid = map[string]uint64{}
+	}
+	if s.Earned == nil {
+		s.Earned = map[string]uint64{}
+	}
+	if s.InFlight == nil {
+		s.InFlight = map[string]*inflight{}
+	}
+	// One-time migration to chain-reconciled accounting: cumulative Earned is the
+	// old (owed + paid). After this, reconcile() derives Owed/Paid from the chain.
+	if len(s.Earned) == 0 && (len(s.Owed) > 0 || len(s.Paid) > 0) {
+		for m, v := range s.Owed {
+			s.Earned[m] += v
+		}
+		for m, v := range s.Paid {
+			s.Earned[m] += v
+		}
+		log.Printf("pool: migrated %d miners to chain-reconciled accounting (Earned = owed + paid)", len(s.Earned))
 	}
 	s.Shares = map[string]float64{}
 }
@@ -367,7 +387,7 @@ func onBlockFound(height uint64) {
 			if m == poolAddr {
 				continue // operator's own mining already receives the block coinbase
 			}
-			st.Owed[m] += uint64(float64(pot) * (s / total))
+			st.Earned[m] += uint64(float64(pot) * (s / total))
 		}
 	}
 	st.Shares = map[string]float64{}
@@ -380,8 +400,10 @@ func onBlockFound(height uint64) {
 // ------------------------------------------------------------------ payouts
 
 func payoutLoop() {
+	reconcile() // align the books with the chain before paying anything
 	for {
 		time.Sleep(60 * time.Second)
+		reconcile() // refresh: confirmed payouts land in Delivered, dropped ones become payable again
 		// Only matured coinbase is spendable; pay out of that and pay PARTIAL if
 		// owed exceeds it (the rest follows as more blocks mature).
 		var bal struct {
@@ -391,37 +413,47 @@ func payoutLoop() {
 			continue
 		}
 		avail := bal.Spendable
+		// Payable per miner = owed (chain-derived) MINUS anything already in flight,
+		// so a payout is never sent twice while its tx is still confirming.
 		st.mu.Lock()
-		var due []string
+		inflightPer := map[string]uint64{}
+		for _, fl := range st.InFlight {
+			inflightPer[fl.Miner] += fl.Gross
+		}
+		type due struct {
+			m   string
+			amt uint64
+		}
+		var list []due
 		for m, owed := range st.Owed {
-			if owed >= minPayout && m != poolAddr {
-				due = append(due, m)
+			if m == poolAddr || inflightPer[m] >= owed {
+				continue
+			}
+			if a := owed - inflightPer[m]; a >= minPayout {
+				list = append(list, due{m, a})
 			}
 		}
+		h := st.ChainHeight
 		st.mu.Unlock()
-		for _, m := range due {
+		for _, d := range list {
 			if avail < minPayout {
 				break
 			}
-			st.mu.Lock()
-			owed := st.Owed[m]
-			st.mu.Unlock()
-			pay := owed
+			pay := d.amt
 			if pay > avail {
 				pay = avail
 			}
-			txid, err := send(m, pay)
+			txid, err := send(d.m, pay)
 			if err != nil {
-				log.Printf("pool: payout to %s deferred: %v", m[:12], err)
+				log.Printf("pool: payout to %s deferred: %v", d.m[:12], err)
 				continue
 			}
 			avail -= pay
 			st.mu.Lock()
-			st.Owed[m] -= pay
-			st.Paid[m] += pay
+			st.InFlight[txid] = &inflight{Miner: d.m, Gross: pay, SentHeight: h}
 			st.mu.Unlock()
 			st.save()
-			log.Printf("pool: paid %s -> %s (%s)", crb(pay), m[:12], txid[:12])
+			log.Printf("pool: payout sent %s -> %s (%s) [awaiting confirmation]", crb(pay), d.m[:12], txid[:12])
 		}
 	}
 }
@@ -584,6 +616,7 @@ func main() {
 	shift := flag.Uint("shareshift", 8, "share target = netTarget << shift (bigger = easier shares)")
 	minp := flag.Float64("minpayout", 0.05, "minimum CRB before a payout is sent")
 	flag.StringVar(&statePath, "state", "/var/lib/cerebra/pool.json", "state file")
+	flag.StringVar(&chainFile, "chain", "/var/lib/cerebra/blocks.jsonl", "node chain file for payout reconciliation")
 	creditSecretFile := flag.String("credit-secret-file", "", "file with the shared secret guarding /api/credit (faucet captcha)")
 	flag.Parse()
 
@@ -615,6 +648,7 @@ func main() {
 	priv = ed25519.PrivateKey(sk)
 	poolAddr = core.AddrFromPub(priv.Public().(ed25519.PublicKey))
 	st.load()
+	reconcile() // align books with the chain at startup (recovers anything dropped on a restart)
 	log.Printf("pool: addr %s fee %.1f%% shareshift %d minpayout %s listen %s",
 		poolAddr, *fee, shareShift, crb(minPayout), *listen)
 

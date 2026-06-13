@@ -90,6 +90,7 @@ func NewChain(dir string) (*Chain, error) {
 		return nil, err
 	}
 	c.loadCheckpoints()
+	c.LoadMempool() // restore pending txns dropped by the restart
 	return c, nil
 }
 
@@ -589,6 +590,33 @@ func (c *Chain) AddTx(t *Tx) error {
 	}
 	if _, ok := c.mempool[t.ID()]; ok {
 		return errors.New("already in mempool")
+	}
+	// Replace-by-fee: a new tx at the same (sender, nonce) as a pending one
+	// replaces it if it pays at least 10% more fee. This enables fee-bump (speed
+	// up a stuck tx) and cancel (replace with a 0-value self-send). Non-consensus.
+	if from, ferr := t.FromAddr(); ferr == nil {
+		for id, m := range c.mempool {
+			if m.Nonce != t.Nonce {
+				continue
+			}
+			if mf, _ := m.FromAddr(); mf != from {
+				continue
+			}
+			minFee := m.Fee + m.Fee/10
+			if minFee <= m.Fee {
+				minFee = m.Fee + 1
+			}
+			if t.Fee < minFee {
+				return fmt.Errorf("replace-by-fee: fee %d must be >= %d (old fee + 10%%)", t.Fee, minFee)
+			}
+			delete(c.mempool, id) // drop the old, validate the new in its slot
+			if err := c.validateMempoolTxLocked(t); err != nil {
+				c.mempool[id] = m // restore on failure
+				return err
+			}
+			c.mempool[t.ID()] = t
+			return nil
+		}
 	}
 	if len(c.mempool) > 10000 {
 		return errors.New("mempool full")

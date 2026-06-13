@@ -5,7 +5,10 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"cereblix/core"
 	"cereblix/node"
@@ -78,5 +81,22 @@ func main() {
 		}
 		n.Mine(*threads, *coinbase)
 	}
+
+	// Persist the mempool periodically and on graceful shutdown so pending txns
+	// (including pool payouts) survive a restart instead of being silently dropped.
+	go func() {
+		for range time.Tick(10 * time.Second) {
+			chain.SaveMempool()
+		}
+	}()
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+		<-sig
+		_ = chain.SaveMempool()
+		log.Print("mempool persisted; shutting down")
+		os.Exit(0)
+	}()
+
 	log.Fatal(n.Serve(*p2pAddr, *rpcAddr))
 }
