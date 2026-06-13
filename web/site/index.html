@@ -383,6 +383,8 @@ cereblix-miner -node http://127.0.0.1:18751/api -addr crb1YOUR_ADDRESS</pre>
   </div>
   <div class="warn" data-i-html="sp_note">💡 On the pool your miner logs <b>"share accepted"</b> - those are <b>shares</b> (proofs of work at an easier target), not full blocks. Your real reward lands as automatic pool payouts to your address. Same miner either way - only the <code>-node</code> changes.</div>
   <div class="warn" data-i-html="ru_note">🇷🇺 <b>RU / CIS</b> and cereblix.com is slow or blocked? Mine through our Moscow relay node - same chain, same pool, no Cloudflare: <code>-node https://ru.cereblix.com/pool/api</code> (solo: <code>-node https://ru.cereblix.com/api</code>).</div>
+  <div class="warn" data-i-html="hive_note">🐝 <b>Mining rig on Hive OS?</b> Add a <b>Custom miner</b> in your Flight Sheet - Installation URL <code>https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-hiveos.tar.gz</code>, Pool URL <code>https://cereblix.com/pool/api</code>, your <code>crb1…</code> wallet. It auto-starts, survives reboots and shows hashrate in the dashboard.</div>
+  <div class="warn" data-i-html="safe_note">⚠️ <b>Use only the official miner</b> from this page or <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>. Anything called "xmrig-cereblix" is <b>not ours</b> - XMRig cannot mine NeuroMorph.</div>
 </section>
 
 <section id="spec">
@@ -624,6 +626,8 @@ const I18N = {
     pool_t:"Пул", pool_b:"Майнишь вместе со всеми. Получаешь стабильный ручеёк пропорционально своей работе, и пул сам платит на твой адрес по достижении 0.05 CRB (комиссия 1%). Лучший вариант для ноутбуков и обычных CPU - намного меньше разброса.",
     sp_note:'💡 На пуле майнер пишет <b>«share accepted»</b> - это <b>шары</b> (доказательства работы на облегчённой цели), а не полные блоки. Реальная награда приходит автоматическими выплатами пула на твой адрес. Майнер тот же - меняется только <code>-node</code>.',
     ru_note:'🇷🇺 <b>РФ / СНГ</b> и cereblix.com медленный или не открывается? Майнь через наш московский узел - та же сеть, тот же пул, без Cloudflare: <code>-node https://ru.cereblix.com/pool/api</code> (соло: <code>-node https://ru.cereblix.com/api</code>).',
+    hive_note:'🐝 <b>Риг на Hive OS?</b> Добавь <b>Custom miner</b> во Flight Sheet - Installation URL <code>https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-hiveos.tar.gz</code>, Pool URL <code>https://cereblix.com/pool/api</code>, кошелёк <code>crb1…</code>. Автостарт, переживает ребут, хешрейт виден в дашборде.',
+    safe_note:'⚠️ <b>Только официальный майнер</b> с этой страницы или из <a href="https://github.com/Cerebra-CBR/cereblix/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>. Любой «xmrig-cereblix» - <b>не наш</b>, XMRig не умеет NeuroMorph.',
     spec_h2:'Параметры <em>сети</em>',
     spec_ticker:"Тикер", spec_algo:"Алгоритм", spec_algo_v:"NeuroMorph v1 - самомутирующая PoW-VM, CPU-only",
     spec_time:"Время блока", spec_time_v:"60 секунд, ретаргет каждые 20 блоков",
