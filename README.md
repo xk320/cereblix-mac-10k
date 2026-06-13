@@ -51,8 +51,13 @@ proof-of-work algorithm.** No GPU, no ASIC - ever. One CPU, one vote.
 
 ## Build
 
-**Prebuilt binaries** (node, miner, wallet — Linux/Windows/macOS) are on the
-[latest release](https://github.com/Cereblix/cereblix/releases/latest).
+**Mac Apple Silicon optimized miner binaries** are on the
+[xk320/cereblix-mac-10k latest release](https://github.com/xk320/cereblix-mac-10k/releases/latest).
+The v1.3.0 Mac package is pool-verified on Apple M4 at a best observed
+15,903.9 H/s window; see [MAC_15K9_RELEASE.md](MAC_15K9_RELEASE.md).
+
+Official cross-platform upstream binaries are on the
+[Cereblix latest release](https://github.com/Cereblix/cereblix/releases/latest).
 
 To build from source — requires Go 1.21+, zero external dependencies (standard
 library only):

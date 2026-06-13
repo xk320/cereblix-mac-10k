@@ -31,19 +31,17 @@ import (
 )
 
 const (
-	minerVersion = "1.3"
+	minerVersion = "1.3.0"
 	hostMain     = "https://cereblix.com"
 	hostRU       = "https://ru.cereblix.com"
-	releasePage  = "https://github.com/Cereblix/cereblix/releases/latest"
+	releasePage  = "https://github.com/xk320/cereblix-mac-10k/releases/latest"
 )
 
-// updateMirrors are tried in order for the version check and the binary download:
-// GitHub first, then our origin (cereblix.com). The origin fallback is RU-friendly
-// AND independent of GitHub, so a GitHub repo rename or a block never breaks the
-// miner's self-update. Each mirror serves the same filenames at its base.
+// updateMirrors are tried in order for the version check and binary download.
+// This Mac-optimized fork points updates at its own release assets so it does
+// not accidentally replace itself with the upstream generic miner.
 var updateMirrors = []string{
-	"https://github.com/Cereblix/cereblix/releases/latest/download/",
-	"https://cereblix.com/",
+	"https://github.com/xk320/cereblix-mac-10k/releases/latest/download/",
 }
 
 type work struct {
