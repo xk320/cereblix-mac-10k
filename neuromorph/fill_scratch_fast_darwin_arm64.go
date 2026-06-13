@@ -137,6 +137,41 @@ static void nm_fill_scratch_arm64(const uint8_t key32[32], uint64_t *dst, size_t
 	}
 }
 
+static void nm_fill_scratch_fold_arm64(const uint8_t key32[32], uint64_t *dst, size_t words, uint64_t fold[8]) {
+	uint8_t rkBytes[176];
+	uint8x16_t rk[11];
+	uint64_t tail;
+	uint64x2_t a0 = vdupq_n_u64(0), a1 = vdupq_n_u64(0), a2 = vdupq_n_u64(0), a3 = vdupq_n_u64(0);
+	nm_expand_aes128(key32, rkBytes);
+	for (int i = 0; i < 11; i++) {
+		rk[i] = vld1q_u8(rkBytes + i * 16);
+	}
+	memcpy(&tail, key32 + 24, sizeof(tail));
+	for (uint64_t i = 0; i < (uint64_t)words; i += 8) {
+		uint64_t in0[2] = {i, tail};
+		uint64_t in1[2] = {i + 2, tail};
+		uint64_t in2[2] = {i + 4, tail};
+		uint64_t in3[2] = {i + 6, tail};
+		uint8x16_t b0 = vld1q_u8((const uint8_t *)in0);
+		uint8x16_t b1 = vld1q_u8((const uint8_t *)in1);
+		uint8x16_t b2 = vld1q_u8((const uint8_t *)in2);
+		uint8x16_t b3 = vld1q_u8((const uint8_t *)in3);
+		nm_aes128_encrypt4(&b0, &b1, &b2, &b3, rk);
+		a0 = veorq_u64(a0, vreinterpretq_u64_u8(b0));
+		a1 = veorq_u64(a1, vreinterpretq_u64_u8(b1));
+		a2 = veorq_u64(a2, vreinterpretq_u64_u8(b2));
+		a3 = veorq_u64(a3, vreinterpretq_u64_u8(b3));
+		vst1q_u8((uint8_t *)(dst + i), b0);
+		vst1q_u8((uint8_t *)(dst + i + 2), b1);
+		vst1q_u8((uint8_t *)(dst + i + 4), b2);
+		vst1q_u8((uint8_t *)(dst + i + 6), b3);
+	}
+	vst1q_u64(fold, a0);
+	vst1q_u64(fold + 2, a1);
+	vst1q_u64(fold + 4, a2);
+	vst1q_u64(fold + 6, a3);
+}
+
 typedef struct {
 	uint8_t op;
 	uint8_t dst;
@@ -218,6 +253,7 @@ static void nm_execute_program_arm64(
 	uint64_t *scratch,
 	uint64_t r[16],
 	double f[8],
+	uint64_t *fold,
 	uint32_t loops,
 	uint64_t branch_mask,
 	uint64_t rot_salt,
@@ -289,7 +325,12 @@ static void nm_execute_program_arm64(
 			}
 			case 11: {
 				uint64_t addr = (r[d] + imm) & UINT64_C(0x1FFFF8);
-				scratch[addr >> 3] ^= r[s] + (uint64_t)loop;
+				uint64_t idx = addr >> 3;
+				uint64_t delta = r[s] + (uint64_t)loop;
+				scratch[idx] ^= delta;
+				if (fold != NULL) {
+					fold[idx & 7] ^= delta;
+				}
 				break;
 			}
 			case 12:
@@ -306,9 +347,15 @@ static void nm_execute_program_arm64(
 			case 13: {
 				uint64_t addr = ((r[s] + imm) & UINT64_C(0x1FFFF8)) & ~UINT64_C(15);
 				uint64_t w = addr >> 3;
+				uint64_t old0 = scratch[w];
+				uint64_t old1 = scratch[w + 1];
 				uint8x16_t block = vld1q_u8((const uint8_t *)(scratch + w));
 				block = nm_aes128_encrypt(block, rk);
 				vst1q_u8((uint8_t *)(scratch + w), block);
+				if (fold != NULL) {
+					fold[w & 7] ^= old0 ^ scratch[w];
+					fold[(w + 1) & 7] ^= old1 ^ scratch[w + 1];
+				}
 				r[d] ^= scratch[w];
 				break;
 			}
@@ -332,7 +379,11 @@ static void nm_execute_program_arm64(
 		}
 		uint64_t base = ((r[0] ^ ((uint64_t)loop * UINT64_C(0x9E3779B97F4A7C15))) & UINT64_C(0x1FFFF8)) >> 3;
 		for (int i = 0; i < 16; i++) {
-			scratch[(base + (uint64_t)i) & UINT64_C(0x3FFFF)] ^= r[i];
+			uint64_t idx = (base + (uint64_t)i) & UINT64_C(0x3FFFF);
+			scratch[idx] ^= r[i];
+			if (fold != NULL) {
+				fold[idx & 7] ^= r[i];
+			}
 		}
 		for (int i = 0; i < 8; i++) {
 			r[i + 8] ^= nm_float_bits(f[i]);
@@ -365,6 +416,19 @@ func fillScratchFast(key [32]byte, scratch []uint64) bool {
 		(*C.uint8_t)(unsafe.Pointer(&key[0])),
 		(*C.uint64_t)(unsafe.Pointer(&scratch[0])),
 		C.size_t(len(scratch)),
+	)
+	return true
+}
+
+func fillScratchFoldFast(key [32]byte, scratch []uint64, fold *[8]uint64) bool {
+	if len(scratch) == 0 {
+		return true
+	}
+	C.nm_fill_scratch_fold_arm64(
+		(*C.uint8_t)(unsafe.Pointer(&key[0])),
+		(*C.uint64_t)(unsafe.Pointer(&scratch[0])),
+		C.size_t(len(scratch)),
+		(*C.uint64_t)(unsafe.Pointer(&fold[0])),
 	)
 	return true
 }
@@ -402,6 +466,38 @@ func executeProgramFast(p *Params, prog []instr, taken []uint8, scratch []uint64
 		(*C.uint64_t)(unsafe.Pointer(&scratch[0])),
 		(*C.uint64_t)(unsafe.Pointer(&r[0])),
 		(*C.double)(unsafe.Pointer(&f[0])),
+		nil,
+		C.uint32_t(p.Loops),
+		C.uint64_t(p.BranchMask),
+		C.uint64_t(p.RotSalt),
+		ds,
+		useDS,
+		(*C.uint8_t)(unsafe.Pointer(&p.AesKey[0])),
+	)
+	return true
+}
+
+func executeProgramFoldFast(p *Params, prog []instr, taken []uint8, scratch []uint64, dataset []uint64, r *[16]uint64, f *[8]float64, fold *[8]uint64, useDataset bool) bool {
+	if len(prog) == 0 || len(scratch) == 0 {
+		return true
+	}
+	var ds *C.uint64_t
+	var useDS C.uint8_t
+	if useDataset {
+		if len(dataset) == 0 {
+			return false
+		}
+		ds = (*C.uint64_t)(unsafe.Pointer(&dataset[0]))
+		useDS = 1
+	}
+	C.nm_execute_program_arm64(
+		(*C.nm_instr)(unsafe.Pointer(&prog[0])),
+		C.size_t(len(prog)),
+		(*C.uint8_t)(unsafe.Pointer(&taken[0])),
+		(*C.uint64_t)(unsafe.Pointer(&scratch[0])),
+		(*C.uint64_t)(unsafe.Pointer(&r[0])),
+		(*C.double)(unsafe.Pointer(&f[0])),
+		(*C.uint64_t)(unsafe.Pointer(&fold[0])),
 		C.uint32_t(p.Loops),
 		C.uint64_t(p.BranchMask),
 		C.uint64_t(p.RotSalt),
