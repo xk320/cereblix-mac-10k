@@ -51,10 +51,14 @@ proof-of-work algorithm.** No GPU, no ASIC - ever. One CPU, one vote.
 
 ## Build
 
-Requires Go 1.21+. Zero external dependencies (standard library only).
+**Prebuilt binaries** (node, miner, wallet — Linux/Windows/macOS) are on the
+[latest release](https://github.com/Cerebra-CBR/cereblix/releases/latest).
+
+To build from source — requires Go 1.21+, zero external dependencies (standard
+library only):
 
 ```sh
-git clone https://github.com/Cerebra-CBR/cerebra.git
+git clone https://github.com/Cerebra-CBR/cereblix.git
 cd cereblix
 go build ./...
 
@@ -139,6 +143,18 @@ cereblixd -datadir ./data -mine -threads 2 -coinbase crb1YOURADDRESS  # node + m
 
 Your own node's RPC is at `http://127.0.0.1:18751/api`. Point the wallet/miner
 at it with `-node http://127.0.0.1:18751/api`.
+
+**Self-updating.** The node keeps itself current automatically: every ~20 min it
+fetches an **authority-signed** release manifest (GitHub first, `cereblix.com`
+fallback), verifies the SHA-256, swaps the binary and restarts - with automatic
+rollback if an update fails to come up healthy, so a bad release can't brick it.
+Turn it off per node with `cereblixd -autoupdate off`; check state with
+`cereblixd -diagnose`; force a check with `cereblixd -update`. This is how network
+upgrades roll out without manual coordination.
+
+**Fees** are a tiny flat anti-spam floor (~0.00001 CRB); under load blocks fill
+**highest-fee-first** (pay a bit more to confirm sooner), so the mempool never
+stalls. The wallet auto-suggests a fee from current network load.
 
 ## Standalone CLI wallet
 

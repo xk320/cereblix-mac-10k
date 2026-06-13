@@ -3,10 +3,13 @@
 > Complete technical specification of Cereblix: the NeuroMorph proof-of-work,
 > the blockchain core, the node, miner and wallets.
 >
-> Document version: 3.0 - Network launched 2026-06-11 - Code license: MIT.
+> Document version: 4.0 - Network launched 2026-06-11 - Code license: MIT.
 > A free, open-source project. No premine, no fund, no fundraising.
 >
-> v3 adds: mining pool, free faucet with a proof-of-useful-work captcha,
+> v4 adds: a Bitcoin-style fee market (flat anti-spam floor + fee-priority block
+> selection, readiness-gated activation) and a self-updating node (authority-
+> signed manifest, SHA-256-verified atomic swap, crash-loop rollback, self-diagnosis).
+> v3 added: mining pool, free faucet with a proof-of-useful-work captcha,
 > coinbase maturity, a height-activated minimum fee, chain-id replay protection,
 > and authority checkpoints for the bootstrap phase.
 
@@ -199,9 +202,14 @@ slower than a laptop.
   binds the genesis hash (chain-id): `cerebra-tx-v1|<chain-id>|<from_pub>|...`, so
   a signature cannot be replayed onto a fork or any other chain sharing the
   `crb1` address format.
-- **Fees** are cheap and self-adjusting: a floor of 0.00001 CRB that rises with
-  recent block fullness, enforced as a consensus minimum from height 450 (no
-  free-transaction bypass).
+- **Fees (Bitcoin-style market).** A tiny flat anti-spam floor (0.00001 CRB),
+  enforced as a consensus minimum from height 450 (no free-transaction bypass).
+  Under congestion the block builder fills **highest-fee-first** (respecting each
+  sender's nonce order), so paying a bit more confirms sooner and the mempool
+  never stalls behind a fee-floor spike or sits empty while txns wait. The wallet
+  auto-suggests a fee from current mempool load. (Before the fee-market activation
+  the floor used an older self-adjusting curve that rose with block fullness; the
+  flat floor is readiness-gated - see §4.5.)
 
 ### 4.4. Blocks
 - Fixed 124-byte header (version, height, time, prev-hash, tx-root, target,
@@ -221,7 +229,17 @@ unique signed transactions, balance/nonce correctness, authority checkpoints
 **Height-activated upgrades** (each turned on at a block height so the existing
 chain stays valid - no restart, no hard fork of history): 64 MiB dataset (240),
 enforced minimum fee (450), coinbase maturity (500), chain-id signature binding
-(700).
+(700), fee market (`FeeMarketHeight`).
+
+**Readiness-gated activation (BIP9-style).** A consensus change (e.g. the fee
+market) does not flip on at a fixed height alone. Every block advertises its
+node's consensus version in the coinbase (a free-form, unvalidated field, so it
+is fully backward compatible), and the new rule locks in only at the first height
+past its floor where a supermajority of the last 100 blocks signal the new
+version. A fork therefore cannot activate until most hashrate is already on the
+new software, so the minority left behind never becomes the heavier chain - the
+upgrade is split-proof, and combined with the self-updating node (§6.9) it needs
+no manual coordination.
 
 ### 4.6. Genesis
 Empty coinbase to an unspendable address, timestamp 2026-06-11 00:00:00 UTC.
@@ -276,9 +294,10 @@ URLs (SSRF guard).
 `status`, `balance` (total, `spendable` and nonce), `history`, `blocks`,
 `block?h=|hash=`, `tx` (GET lookup / POST submit), `mempool`, `mined?addr=`
 (blocks mined to an address), `getwork`, `submitwork`, `checkpoint` (GET serve /
-POST from the authority signer), `params`, `richlist`, `search`. `status` reports
-network hashrate (8-block window), block age, the suggested fee, and the chain-id
-and its activation height.
+POST from the authority signer), `params`, `richlist`, `search`, `upgrade` (the
+authority-signed manifest this node holds). `status` reports network hashrate
+(8-block window), block age, the suggested fee and hard fee floor, the running
+`node_version` / `consensus_version`, and the chain-id and its activation height.
 
 ### 6.3. getwork / submitwork
 External miners pull a header template + epoch seed via `getwork` and submit a
@@ -324,6 +343,27 @@ amount, rate-limited per address and per IP (real client IP taken from the last
 The operator-only tool that periodically signs a block a few behind the tip with
 the authority key and pushes it to the node (`POST /api/checkpoint`), which
 serves it to peers. See §5. The private key is kept off the network.
+
+### 6.9. Self-updating node (signed, verified, self-healing)
+The node keeps itself current without manual coordination - this is how network
+upgrades roll out. Every ~20 min it fetches an **authority-signed upgrade
+manifest** (`core.UpgradeManifest`, signed by the same key as checkpoints; tried
+GitHub-first, then the `cereblix.com` origin, then peers - so it still updates
+where GitHub is blocked). It verifies the signature against the key compiled into
+the binary, downloads the platform binary, checks its **SHA-256**, swaps it
+atomically (rename-aside on Windows, where a running `.exe` can't be overwritten)
+keeping a `.old` backup, and restarts.
+
+It is **self-healing**, so a bad release can never brick the network: a freshly
+installed binary must serve RPC healthily within a window, else the next boots
+count it as failed; after a few crash-looped boots the node **rolls back** to the
+previous binary and blacklists the bad version (never re-installed until a
+strictly-newer fix appears). A preflight self-check (writable datadir, free ports)
+tells a bad binary apart from a broken environment, and the rollback only confirms
+a bad version if the previous binary then comes up healthy - otherwise the fault
+is diagnosed as environmental and auto-update is paused instead of thrashing
+binaries. Operators can opt out per node (`cereblixd -autoupdate off`), force a
+check (`-update`), or inspect state (`-diagnose`).
 
 ---
 
