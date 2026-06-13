@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -420,10 +421,6 @@ func payoutLoop() {
 		for _, fl := range st.InFlight {
 			inflightPer[fl.Miner] += fl.Gross
 		}
-		type due struct {
-			m   string
-			amt uint64
-		}
 		var list []due
 		for m, owed := range st.Owed {
 			if m == poolAddr || inflightPer[m] >= owed {
@@ -435,27 +432,75 @@ func payoutLoop() {
 		}
 		h := st.ChainHeight
 		st.mu.Unlock()
-		for _, d := range list {
-			if avail < minPayout {
-				break
-			}
-			pay := d.amt
-			if pay > avail {
-				pay = avail
-			}
-			txid, err := send(d.m, pay)
+		// Split the spendable budget across miners PROPORTIONALLY to what each is
+		// owed (a miner owed 1000 drains ~10x faster than one owed 100), instead of
+		// fully paying whoever came first. Under scarcity the big debts drain in
+		// step with the small ones rather than starving behind them.
+		for _, d := range planPayouts(list, avail, minPayout) {
+			txid, err := send(d.m, d.amt)
 			if err != nil {
 				log.Printf("pool: payout to %s deferred: %v", d.m[:12], err)
 				continue
 			}
-			avail -= pay
 			st.mu.Lock()
-			st.InFlight[txid] = &inflight{Miner: d.m, Gross: pay, SentHeight: h}
+			st.InFlight[txid] = &inflight{Miner: d.m, Gross: d.amt, SentHeight: h}
 			st.mu.Unlock()
 			st.save()
-			log.Printf("pool: payout sent %s -> %s (%s) [awaiting confirmation]", crb(pay), d.m[:12], txid[:12])
+			log.Printf("pool: payout sent %s -> %s (%s) [awaiting confirmation]", crb(d.amt), d.m[:12], txid[:12])
 		}
 	}
+}
+
+// due is one miner's payable amount this cycle.
+type due struct {
+	m   string
+	amt uint64
+}
+
+// planPayouts decides how much to pay each miner from `avail` this cycle. If the
+// budget covers everyone, each gets their full owed. Under scarcity it splits the
+// budget PROPORTIONALLY to each miner's debt (owed 1000 -> 10x the slice of owed
+// 100), largest first, skipping slices below minPayout so we never burn a fee on
+// dust. Pure function -> unit-tested.
+func planPayouts(list []due, avail, minPayout uint64) []due {
+	if len(list) == 0 || avail < minPayout {
+		return nil
+	}
+	var total uint64
+	for _, d := range list {
+		total += d.amt
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].amt > list[j].amt })
+	scarce := avail < total
+	budget := avail
+	var plan []due
+	for _, d := range list {
+		if budget < minPayout {
+			break
+		}
+		pay := d.amt
+		if scarce {
+			// proportional slice of the (original) budget by share of total owed:
+			// pay = avail * amt / total, exact integer math (no float rounding, no
+			// uint64 overflow).
+			pay = new(big.Int).Div(
+				new(big.Int).Mul(new(big.Int).SetUint64(avail), new(big.Int).SetUint64(d.amt)),
+				new(big.Int).SetUint64(total),
+			).Uint64()
+			if pay > d.amt {
+				pay = d.amt
+			}
+		}
+		if pay > budget {
+			pay = budget
+		}
+		if pay < minPayout {
+			continue // would be dust; this miner accrues for a later cycle
+		}
+		plan = append(plan, due{d.m, pay})
+		budget -= pay
+	}
+	return plan
 }
 
 var sendMu sync.Mutex
