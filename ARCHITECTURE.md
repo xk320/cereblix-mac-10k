@@ -413,7 +413,7 @@ A local key store + RPC client + block explorer, independent of the website
 Requires Go 1.21+. Zero external dependencies.
 
 ```sh
-git clone https://github.com/Cerebra-CBR/cereblix.git
+git clone https://github.com/Cereblix/cereblix.git
 cd cereblix
 go build ./...
 

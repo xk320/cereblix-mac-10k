@@ -52,13 +52,13 @@ proof-of-work algorithm.** No GPU, no ASIC - ever. One CPU, one vote.
 ## Build
 
 **Prebuilt binaries** (node, miner, wallet — Linux/Windows/macOS) are on the
-[latest release](https://github.com/Cerebra-CBR/cereblix/releases/latest).
+[latest release](https://github.com/Cereblix/cereblix/releases/latest).
 
 To build from source — requires Go 1.21+, zero external dependencies (standard
 library only):
 
 ```sh
-git clone https://github.com/Cerebra-CBR/cereblix.git
+git clone https://github.com/Cereblix/cereblix.git
 cd cereblix
 go build ./...
 

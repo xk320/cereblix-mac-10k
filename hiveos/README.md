@@ -10,7 +10,7 @@ Flight Sheet (auto-start, survives reboot, hashrate shown in the dashboard).
 2. **Flight Sheets → Create**: select the Custom wallet, then under **Miner**
    choose **Custom** and click **Setup Miner Config**:
    - **Miner name / Installation URL**:
-     `https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-hiveos.tar.gz`
+     `https://github.com/Cereblix/cereblix/releases/latest/download/cereblix-hiveos.tar.gz`
    - **Pool URL**: `https://cereblix.com/pool/api`
      (RU/CIS, if cereblix.com is slow or blocked: `https://ru.cereblix.com/pool/api`)
    - **Extra config arguments** (optional): e.g. `-threads 6`
@@ -26,7 +26,7 @@ Just run the standalone Linux binary from the Hive Shell:
 
 ```bash
 cd /home/user
-wget https://github.com/Cerebra-CBR/cereblix/releases/latest/download/cereblix-miner-linux-amd64 -O cereblix-miner
+wget https://github.com/Cereblix/cereblix/releases/latest/download/cereblix-miner-linux-amd64 -O cereblix-miner
 chmod +x cereblix-miner
 screen -dmS crb ./cereblix-miner -addr crb1YOUR_ADDRESS -node https://cereblix.com/pool/api
 ```
