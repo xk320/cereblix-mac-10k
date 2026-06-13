@@ -50,8 +50,19 @@ type Node struct {
 	cpMu       sync.Mutex
 	checkpoint core.Checkpoint // latest signed authority checkpoint we hold/serve
 
+	upgMu sync.RWMutex
+	upg   *core.UpgradeManifest // latest authority-signed upgrade manifest we hold/serve
+
 	hashCount atomic.Uint64 // built-in miner counter
 	stop      chan struct{}
+}
+
+// SetUpgrade stores the latest authority-verified upgrade manifest so the node
+// can re-serve it to peers and the website (RU-friendly mirror of GitHub).
+func (n *Node) SetUpgrade(m core.UpgradeManifest) {
+	n.upgMu.Lock()
+	n.upg = &m
+	n.upgMu.Unlock()
 }
 
 func New(chain *core.Chain, dataDir, publicURL string, seedPeers []string) *Node {
@@ -672,6 +683,7 @@ func (n *Node) RPCHandler() http.Handler {
 			"block_age":     blockAge,
 			"now":           now,
 			"fee_suggested": n.Chain.SuggestedFee(),
+			"fee_floor":     n.Chain.FeeFloor(),
 			"chain_id":        core.ChainID,
 			"chain_id_height": core.ChainIDHeight,
 		})
@@ -891,6 +903,19 @@ func (n *Node) RPCHandler() http.Handler {
 		}
 		log.Printf("miner: external miner found block %d %s", b.Height, b.Hash()[:16])
 		writeJSON(w, map[string]string{"result": "accepted", "hash": b.Hash()})
+	})
+
+	// Serve the latest authority-signed upgrade manifest so peers/the website can
+	// mirror it where GitHub is blocked. Receivers re-verify the signature.
+	h("/api/upgrade", func(w http.ResponseWriter, r *http.Request) {
+		n.upgMu.RLock()
+		m := n.upg
+		n.upgMu.RUnlock()
+		if m == nil {
+			writeErr(w, 404, "no upgrade manifest")
+			return
+		}
+		writeJSON(w, m)
 	})
 
 	h("/api/params", func(w http.ResponseWriter, r *http.Request) {

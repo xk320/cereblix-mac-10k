@@ -769,29 +769,64 @@ func (c *Chain) BuildTemplate(coinbase string) (*Block, error) {
 	if height >= MinFeeHeight {
 		minfee = minFeeFor(c.blocks)
 	}
+	// Bitcoin-style fee market: repeatedly include the HIGHEST-fee tx that is the
+	// next valid nonce for its sender (per-sender nonce order is mandatory). Under
+	// congestion whoever pays more confirms sooner; with spare room everything
+	// above the floor gets in. (Selection is policy, not consensus - any valid
+	// block is accepted - so this needs no activation height.)
+	bySender := map[string][]*Tx{}
+	for _, t := range c.mempool {
+		from, err := t.FromAddr()
+		if err != nil {
+			continue
+		}
+		bySender[from] = append(bySender[from], t)
+	}
+	for _, s := range bySender {
+		sort.Slice(s, func(i, j int) bool { return s[i].Nonce < s[j].Nonce })
+	}
+	idx := map[string]int{} // consumed position in each sender's nonce-sorted list
 	var picked []*Tx
-	for _, t := range c.sortedMempoolLocked() {
-		if len(picked) >= MaxBlockTxs-1 {
+	for len(picked) < MaxBlockTxs-1 {
+		var best *Tx
+		var bestFrom string
+		for from, s := range bySender {
+			i := idx[from]
+			for i < len(s) && s[i].Nonce < st.get(from).Nonce { // skip stale nonces
+				i++
+			}
+			idx[from] = i
+			if i >= len(s) {
+				continue
+			}
+			t := s[i]
+			if t.Nonce != st.get(from).Nonce { // nonce gap - sender blocked for now
+				continue
+			}
+			if t.Fee < minfee || validateTxAgainstState(st, t, imm, height) != nil {
+				continue
+			}
+			if best == nil || t.Fee > best.Fee || (t.Fee == best.Fee && t.ID() < best.ID()) {
+				best, bestFrom = t, from
+			}
+		}
+		if best == nil {
 			break
 		}
-		if t.Fee < minfee {
-			continue
-		}
-		if validateTxAgainstState(st, t, imm, height) != nil {
-			continue
-		}
-		from, _ := t.FromAddr()
-		acc := st.get(from)
-		acc.Balance -= t.Amount + t.Fee
+		acc := st.get(bestFrom)
+		acc.Balance -= best.Amount + best.Fee
 		acc.Nonce++
-		st.get(t.To).Balance += t.Amount
-		picked = append(picked, t)
+		st.get(best.To).Balance += best.Amount
+		picked = append(picked, best)
+		idx[bestFrom]++
 	}
 	var fees uint64
 	for _, t := range picked {
 		fees += t.Fee
 	}
-	cb := &Tx{To: coinbase, Amount: BlockSubsidy(height) + fees, Nonce: height}
+	// Stamp this node's consensus version into the coinbase (free-form, unvalidated
+	// Sig field) so the block votes toward readiness-gated upgrades. See upgrade.go.
+	cb := &Tx{To: coinbase, Amount: BlockSubsidy(height) + fees, Nonce: height, Sig: coinbaseTag()}
 	txs := append([]*Tx{cb}, picked...)
 
 	now := uint64(time.Now().Unix())
@@ -915,26 +950,65 @@ func minFeeFor(blocks []*Block) uint64 {
 		}
 	}
 	fill := float64(txs) / float64(capacity) // 0..1
-	if uint64(len(blocks)) < SoftFeeHeight {
-		// legacy curve - kept byte-for-byte so nodes agree on history and on
-		// new blocks until the SoftFeeHeight activation.
+	if !feeMarketActiveAt(blocks, uint64(len(blocks))) {
+		// legacy self-adjusting curve - kept byte-for-byte so nodes agree on
+		// history and on new blocks until the fee market locks in (readiness-
+		// gated at/after FeeMarketHeight; see core/upgrade.go).
 		return uint64(float64(floor) * (1.0 + fullMult*fill*fill))
 	}
-	// Gentle curve: stay at the base floor until blocks are SUSTAINEDLY over
-	// half full (across the 20-block window), then ramp. A one-off payout burst
-	// (a single fat block, fill well under 0.5 on average) no longer lifts the
-	// floor, so cheap txns aren't stranded and blocks don't sit empty while the
-	// mempool waits. Even completely full blocks cap at ~101x floor (~0.001 CRB).
-	const knee = 0.5
-	if fill <= knee {
-		return floor
-	}
-	over := (fill - knee) / (1.0 - knee) // 0..1 above the knee
-	return uint64(float64(floor) * (1.0 + 100.0*over*over))
+	// Fee-market era: a tiny flat anti-spam floor only - no congestion scaling.
+	// Congestion is handled Bitcoin-style by fee-priority block selection
+	// (highest-fee txns first), so the floor never spikes and never strands
+	// cheap txns or produces empty blocks while the mempool waits.
+	return floor
 }
 
-// SuggestedFee returns the current cheap, self-adjusting fee (synapses).
+// SuggestedFee returns a recommended fee (synapses) for timely confirmation.
+// Below FeeMarketHeight it is the legacy self-adjusting floor. From
+// FeeMarketHeight on, the consensus floor is flat, so congestion is reflected
+// HERE instead (a wallet hint, not consensus): if more than one block's worth
+// of txns are waiting, recommend just over the fee that would be cut from the
+// next block; otherwise the next block clears everything, so recommend the floor.
 func (c *Chain) SuggestedFee() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	floor := minFeeFor(c.blocks)
+	if !feeMarketActiveAt(c.blocks, uint64(len(c.blocks))) {
+		return floor
+	}
+	fees := make([]uint64, 0, len(c.mempool))
+	for _, t := range c.mempool {
+		fees = append(fees, t.Fee)
+	}
+	return suggestFee(fees, floor)
+}
+
+// suggestFee estimates the fee needed for next-block inclusion given the fees
+// of the txns currently waiting and the hard floor. If one block fits the whole
+// backlog, the floor confirms you; otherwise recommend just over the fee that
+// would be cut from the next block. Pure (no locks/state) so it is unit-tested.
+func suggestFee(memFees []uint64, floor uint64) uint64 {
+	capacity := MaxBlockTxs - 1
+	fees := make([]uint64, 0, len(memFees))
+	for _, f := range memFees {
+		if f >= floor {
+			fees = append(fees, f)
+		}
+	}
+	if len(fees) <= capacity {
+		return floor // next block fits the whole mempool
+	}
+	sort.Slice(fees, func(i, j int) bool { return fees[i] > fees[j] }) // desc
+	cut := fees[capacity-1]                                            // lowest fee still in the next block
+	bump := cut / 8                                                    // ~12% over the cut so you clear it, not tie
+	if bump == 0 {
+		bump = 1
+	}
+	return cut + bump
+}
+
+// FeeFloor is the hard consensus minimum a tx must pay right now (synapses).
+func (c *Chain) FeeFloor() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return minFeeFor(c.blocks)

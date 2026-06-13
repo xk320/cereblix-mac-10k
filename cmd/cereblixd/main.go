@@ -23,9 +23,34 @@ func main() {
 		coinbase = flag.String("coinbase", "", "address that receives block rewards")
 		maxReorg = flag.Uint64("maxreorg", 100, "reject reorgs deeper than N blocks (0 = unlimited); decentralized 51% guard")
 		reorgPen = flag.Uint64("reorg-penalty", 0, "extra work permille per reorg-depth block required (0 = off)")
+		noUpdate = flag.Bool("noupdate", false, "disable automatic node self-update for this run (one-off; see -autoupdate to persist)")
+		doUpdate = flag.Bool("update", false, "update to the latest released node (if newer) and exit")
+		doDiag   = flag.Bool("diagnose", false, "print a self-diagnosis (environment, update state, recent boots) and exit")
+		autoUpd  = flag.String("autoupdate", "", "persist auto-update preference: 'on' or 'off', then exit")
 	)
 	flag.Parse()
 	log.SetFlags(log.LstdFlags)
+
+	if *doUpdate {
+		runUpdateOnce()
+		return
+	}
+	if *doDiag {
+		runDiagnose(*datadir, *p2pAddr, *rpcAddr)
+		return
+	}
+	if *autoUpd != "" {
+		switch strings.ToLower(strings.TrimSpace(*autoUpd)) {
+		case "on", "true", "1", "enable":
+			setAutoUpdate(true)
+		case "off", "false", "0", "disable":
+			setAutoUpdate(false)
+		default:
+			log.Println("usage: cereblixd -autoupdate on|off")
+		}
+		return
+	}
+	bootGuard(*datadir, *p2pAddr, *rpcAddr)
 
 	chain, err := core.NewChain(*datadir)
 	if err != nil {
@@ -42,6 +67,8 @@ func main() {
 		}
 	}
 	n := node.New(chain, *datadir, *public, seeds)
+	log.Printf("node software v%s (consensus v%d)", nodeVersion, core.NodeConsensusVersion)
+	go autoUpdateLoop(n, !*noUpdate)
 
 	if *mine {
 		if !core.ValidAddr(*coinbase) {

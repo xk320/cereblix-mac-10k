@@ -39,13 +39,13 @@ const (
 	// (existing blocks, including any early 0-fee test tx, stay valid).
 	MinFeeHeight = 450
 
-	// SoftFeeHeight: from this height the fee floor uses a gentler curve that
-	// stays at the base floor until blocks are SUSTAINEDLY over half full. Below
-	// this height the original curve is kept byte-for-byte so all nodes still
-	// agree on history (and on new blocks until activation). The old curve was
-	// so steep that a single payout-burst block spiked the floor for ~20 blocks,
-	// stranding cheap txns and producing empty blocks while the mempool waited.
-	SoftFeeHeight = 3055
+	// FeeMarketHeight: from this height the consensus fee floor becomes a tiny
+	// flat anti-spam minimum (no congestion scaling). Congestion is instead
+	// handled Bitcoin-style by fee-priority block selection (highest-fee txns
+	// first). Below this height the original self-adjusting curve is kept
+	// byte-for-byte so all nodes agree on history and on new blocks until
+	// activation - so deploying the new binary early does not fork the chain.
+	FeeMarketHeight = 3195
 
 	// ChainIDHeight: from this height, transaction signatures must additionally
 	// commit to ChainID (the genesis hash). This binds a signature to THIS chain
