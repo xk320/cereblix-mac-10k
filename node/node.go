@@ -861,11 +861,19 @@ func (n *Node) RPCHandler() http.Handler {
 			return
 		}
 		var req struct {
-			ID    string `json:"id"`
-			Nonce uint64 `json:"nonce"`
+			ID    string          `json:"id"`
+			Nonce json.RawMessage `json:"nonce"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeErr(w, 400, "bad json")
+			return
+		}
+		// Accept the nonce as a JSON number OR a quoted string: a 64-bit nonce
+		// exceeds JS's 2^53 safe-integer range, so the browser miner sends it as
+		// a string; the native miner sends a number.
+		nonce, perr := strconv.ParseUint(strings.Trim(string(req.Nonce), "\""), 10, 64)
+		if perr != nil {
+			writeErr(w, 400, "bad nonce")
 			return
 		}
 		n.tmplMu.Lock()
@@ -876,7 +884,7 @@ func (n *Node) RPCHandler() http.Handler {
 			return
 		}
 		b := *tmpl
-		b.Nonce = req.Nonce
+		b.Nonce = nonce
 		if err := n.Chain.AddBlock(&b); err != nil {
 			writeErr(w, 400, err.Error())
 			return

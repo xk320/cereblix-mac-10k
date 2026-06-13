@@ -262,6 +262,7 @@ func getworkHandler(w http.ResponseWriter, r *http.Request) {
 		"target":     core.TargetToHex(wk.shareTarget),
 		"seed":       hex.EncodeToString(wk.seed),
 		"height":     wk.height,
+		"epoch":      wk.height / core.EpochLength,
 		"extranonce": extranonceFor(addr),
 	})
 }
@@ -272,11 +273,19 @@ func submitworkHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ID    string `json:"id"`
-		Nonce uint64 `json:"nonce"`
+		ID    string          `json:"id"`
+		Nonce json.RawMessage `json:"nonce"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
 		writeJSON(w, 400, map[string]string{"error": "bad json"})
+		return
+	}
+	// Accept the nonce as a JSON number OR a quoted string: a 64-bit nonce
+	// (extranonce in the top bits) exceeds JS's 2^53 safe-integer range, so the
+	// browser miner must send it as a string; the native miner sends a number.
+	nonce, perr := strconv.ParseUint(strings.Trim(string(req.Nonce), "\""), 10, 64)
+	if perr != nil {
+		writeJSON(w, 400, map[string]string{"error": "bad nonce"})
 		return
 	}
 	i := strings.LastIndex(req.ID, "|")
@@ -292,7 +301,7 @@ func submitworkHandler(w http.ResponseWriter, r *http.Request) {
 	// Share-binding: the nonce's top-16-bit tag must equal the extranonce this
 	// address was issued. This makes a solution valid for exactly one miner, so
 	// nobody can claim another miner's share by submitting it under their address.
-	if (req.Nonce>>48)&0xFFFF != extranonceFor(miner) {
+	if (nonce>>48)&0xFFFF != extranonceFor(miner) {
 		writeJSON(w, 400, map[string]string{"error": "nonce not bound to your extranonce - update your miner"})
 		return
 	}
@@ -306,15 +315,15 @@ func submitworkHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// dedup
 	workMu.Lock()
-	if wk.seen[req.Nonce] {
+	if wk.seen[nonce] {
 		workMu.Unlock()
 		writeJSON(w, 200, map[string]string{"result": "duplicate"})
 		return
 	}
-	wk.seen[req.Nonce] = true
+	wk.seen[nonce] = true
 	workMu.Unlock()
 
-	h := hashFor(wk, req.Nonce)
+	h := hashFor(wk, nonce)
 	if !core.HashMeetsTarget(h, wk.shareTarget) {
 		writeJSON(w, 400, map[string]string{"error": "low difficulty share"})
 		return
@@ -329,7 +338,7 @@ func submitworkHandler(w http.ResponseWriter, r *http.Request) {
 	block := core.HashMeetsTarget(h, wk.netTarget)
 	if block {
 		// forward the real block to the node
-		body, _ := json.Marshal(map[string]any{"id": nodeID, "nonce": req.Nonce})
+		body, _ := json.Marshal(map[string]any{"id": nodeID, "nonce": nonce})
 		resp, err := http.Post(nodeAPI+"/submitwork", "application/json", strings.NewReader(string(body)))
 		if err == nil {
 			raw, _ := io.ReadAll(resp.Body)
