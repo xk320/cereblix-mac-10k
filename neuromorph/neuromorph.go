@@ -337,11 +337,9 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 				binary.LittleEndian.PutUint64(aesIn[0:8], vm.scratch[w])
 				binary.LittleEndian.PutUint64(aesIn[8:16], vm.scratch[w+1])
 				vm.aes.Encrypt(aesOut[:], aesIn[:])
-				a0 := binary.LittleEndian.Uint64(aesOut[0:8])
-				a1 := binary.LittleEndian.Uint64(aesOut[8:16])
-				vm.scratch[w] = a0
-				vm.scratch[w+1] = a1
-				r[d] ^= a0
+				vm.scratch[w] = binary.LittleEndian.Uint64(aesOut[0:8])
+				vm.scratch[w+1] = binary.LittleEndian.Uint64(aesOut[8:16])
+				r[d] ^= vm.scratch[w]
 			case opXDOM:
 				if ins.imm&1 == 0 {
 					r[d] ^= math.Float64bits(f[s&7])
