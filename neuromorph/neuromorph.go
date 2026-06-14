@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/bits"
 	"sync"
+	"unsafe"
 )
 
 const (
@@ -173,6 +174,8 @@ type VM struct {
 	prog    []instr
 	taken   []uint8
 	dataset []uint64 // shared per-epoch 64 MiB dataset; nil until first needed
+	jitBuf  unsafe.Pointer
+	aesRK   [176]byte
 }
 
 func NewVM(p *Params) *VM {
@@ -180,13 +183,16 @@ func NewVM(p *Params) *VM {
 	if err != nil {
 		panic(err)
 	}
-	return &VM{
+	vm := &VM{
 		params:  p,
 		aes:     blk,
 		scratch: make([]uint64, scratchWords),
 		prog:    make([]instr, p.ProgSize),
 		taken:   make([]uint8, p.ProgSize),
 	}
+	expandAES128RoundKeys(&p.AesKey, &vm.aesRK)
+	vm.jitBuf = newJITResidentBuffer(p.ProgSize)
+	return vm
 }
 
 // fillScratch fills the scratchpad with AES-CTR keystream seeded by `seed`.
@@ -305,7 +311,12 @@ func (vm *VM) Hash(header []byte, height uint64) [32]byte {
 			for i := 0; i < 8; i++ {
 				f[i] = normFloat(scratch[16+i])
 			}
-			foldReady = executeProgramFoldFast(p, prog, taken, scratch, dataset, &r, &f, &fold, useDS)
+			if vm.jitBuf != nil {
+				foldReady = jitRealExecuteProbeResidentReuse(vm.jitBuf, p, prog, &r, scratch, &fold, &f, dataset, useDS, &vm.aesRK, taken)
+			}
+			if !foldReady {
+				foldReady = executeProgramFoldFast(p, prog, taken, scratch, dataset, &r, &f, &fold, useDS)
+			}
 		}
 	}
 

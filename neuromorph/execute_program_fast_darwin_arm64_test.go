@@ -2,7 +2,12 @@
 
 package neuromorph
 
-import "testing"
+import (
+	"crypto/sha256"
+	"encoding/binary"
+	"math"
+	"testing"
+)
 
 func TestExecuteProgramFastMatchesSlowPath(t *testing.T) {
 	params := []*Params{
@@ -28,6 +33,60 @@ func TestExecuteProgramFastMatchesSlowPath(t *testing.T) {
 					t.Fatalf("fast VM mismatch params=%d height=%d nonce=%d\nfast %x\nslow %x", pi, height, n, fast, slow)
 				}
 			}
+		}
+	}
+}
+
+func BenchmarkFillScratchFoldFast(b *testing.B) {
+	p := DeriveParams(EpochSeed0())
+	vm := NewVM(p)
+	seed := benchmarkSeed()
+	var keyInput [33]byte
+	copy(keyInput[:32], seed[:])
+	keyInput[32] = 0x53
+	scratchKey := sha256.Sum256(keyInput[:])
+	var fold [8]uint64
+
+	b.SetBytes(int64(len(vm.scratch) * 8))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if !fillScratchFoldFast(scratchKey, vm.scratch, &fold) {
+			b.Fatal("fillScratchFoldFast unavailable")
+		}
+	}
+}
+
+func BenchmarkExecuteProgramFoldFastDataset(b *testing.B) {
+	p := DeriveParams(EpochSeed0())
+	vm := NewVM(p)
+	seed := benchmarkSeed()
+	var keyInput [33]byte
+	copy(keyInput[:32], seed[:])
+	keyInput[32] = 0x53
+	scratchKey := sha256.Sum256(keyInput[:])
+	var fold [8]uint64
+	if !fillScratchFoldFast(scratchKey, vm.scratch, &fold) {
+		b.Fatal("fillScratchFoldFast unavailable")
+	}
+	vm.genProgram(seed)
+	dataset := getDataset(p.DatasetKey)
+
+	var r [16]uint64
+	var f [8]float64
+	for i := 0; i < 4; i++ {
+		r[i] = binary.LittleEndian.Uint64(seed[i*8 : i*8+8])
+	}
+	for i := 4; i < 16; i++ {
+		r[i] = vm.scratch[i] ^ p.RotSalt
+	}
+	for i := 0; i < 8; i++ {
+		f[i] = math.Float64frombits((uint64(1023) << 52) | (vm.scratch[16+i] & 0x000FFFFFFFFFFFFF))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if !executeProgramFoldFast(p, vm.prog, vm.taken, vm.scratch, dataset, &r, &f, &fold, true) {
+			b.Fatal("executeProgramFoldFast unavailable")
 		}
 	}
 }

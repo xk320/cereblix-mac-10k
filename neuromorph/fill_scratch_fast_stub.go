@@ -2,6 +2,8 @@
 
 package neuromorph
 
+import "unsafe"
+
 func fillScratchFast(key [32]byte, scratch []uint64) bool {
 	return false
 }
@@ -23,5 +25,23 @@ func executeProgramFoldFast(p *Params, prog []instr, taken []uint8, scratch []ui
 }
 
 func foldScratchFast(scratch []uint64, fold *[8]uint64) bool {
+	return false
+}
+
+func expandAES128RoundKeys(key *[16]byte, rk *[176]byte) {
+	_ = key
+	_ = rk
+}
+
+func newJITResidentBuffer(progSize int) unsafe.Pointer {
+	_ = progSize
+	return nil
+}
+
+func freeJITBuffer(buf unsafe.Pointer) {
+	_ = buf
+}
+
+func jitRealExecuteProbeResidentReuse(buf unsafe.Pointer, p *Params, prog []instr, r *[16]uint64, scratch []uint64, fold *[8]uint64, f *[8]float64, dataset []uint64, useDataset bool, rk *[176]byte, taken []uint8) bool {
 	return false
 }
