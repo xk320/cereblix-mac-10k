@@ -2133,8 +2133,17 @@ static int nm_jit_real_execute_probe_reuse(
 		}
 	}
 	nm_jit_mem_fn fn = (nm_jit_mem_fn)buf->mem;
+	int branch_indices[768];
+	int branch_count = 0;
+	for (int i = 0; i < ninst && i < 768; i++) {
+		if (prog[i].op == 12) {
+			branch_indices[branch_count++] = i;
+		}
+	}
 	for (uint32_t loop = 0; loop < loops; loop++) {
-		memset(taken, 0, (size_t)ninst);
+		for (int i = 0; i < branch_count; i++) {
+			taken[branch_indices[i]] = 0;
+		}
 		fn(r, scratch, fold, f, rot_salt, (uint64_t)loop, rk, taken);
 		if (use_dataset) {
 			uint64_t addr = (r[1] ^ rot_salt) & UINT64_C(0x3FFFFF8);
