@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	minerVersion = "1.4.1"
+	minerVersion = "1.4.2"
 	hostMain     = "https://cereblix.com"
 	hostRU       = "https://ru.cereblix.com"
 	releasePage  = "https://github.com/xk320/cereblix-mac-10k/releases/latest"
@@ -420,7 +420,7 @@ func main() {
 	flag.Parse()
 
 	fmt.Println("╔══════════════════════════════════════════════╗")
-	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.4.1     ║")
+	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.4.2     ║")
 	fmt.Println("║   one CPU = one vote                          ║")
 	fmt.Println("╚══════════════════════════════════════════════╝")
 
