@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	minerVersion = "1.4.2"
+	minerVersion = "1.4.3-async1"
 	hostMain     = "https://cereblix.com"
 	hostRU       = "https://ru.cereblix.com"
 	releasePage  = "https://github.com/xk320/cereblix-mac-10k/releases/latest"
@@ -74,7 +74,14 @@ var (
 	blocks    atomic.Uint64 // real blocks found (solo, or pool shares that hit the network target)
 	current   atomic.Pointer[work]
 	client    = &http.Client{Timeout: 15 * time.Second}
+	submits   chan submitReq
 )
+
+type submitReq struct {
+	id     string
+	nonce  uint64
+	height uint64
+}
 
 func configPath() string {
 	if exe, err := os.Executable(); err == nil {
@@ -420,7 +427,7 @@ func main() {
 	flag.Parse()
 
 	fmt.Println("╔══════════════════════════════════════════════╗")
-	fmt.Println("║   Cereblix · NeuroMorph CPU miner  v1.4.2     ║")
+	fmt.Printf("║   Cereblix · NeuroMorph CPU miner  v%-13s ║\n", minerVersion)
 	fmt.Println("║   one CPU = one vote                          ║")
 	fmt.Println("╚══════════════════════════════════════════════╝")
 
@@ -511,6 +518,8 @@ func main() {
 	} else {
 		log.Printf("connected - mining")
 	}
+	submits = make(chan submitReq, submitQueueSize(threads))
+	go submitLoop()
 	go workLoop()
 	for i := 0; i < threads; i++ {
 		go mineThread(uint64(i))
@@ -619,8 +628,7 @@ func mineThread(id uint64) {
 					hashCount.Add(localHashes)
 					localHashes = 0
 				}
-				submit(w.ID, nonce, w.Height)
-				fetchWork()
+				queueSubmit(w.ID, nonce, w.Height)
 				break
 			}
 			ctr++
@@ -631,6 +639,46 @@ func mineThread(id uint64) {
 				break // new work arrived
 			}
 		}
+	}
+}
+
+func queueSubmit(id string, nonce uint64, height uint64) {
+	req := submitReq{id: id, nonce: nonce, height: height}
+	enqueueSubmit(submits, req, func(req submitReq) {
+		go submitOne(req)
+	})
+}
+
+func submitQueueSize(threads int) int {
+	size := threads * 4
+	if size < 16 {
+		return 16
+	}
+	return size
+}
+
+func enqueueSubmit(queue chan<- submitReq, req submitReq, fallback func(submitReq)) bool {
+	select {
+	case queue <- req:
+		return true
+	default:
+		// Shares are rare; if a temporary network stall fills the queue, keep the
+		// mining worker moving and let a detached submitter drain this one proof.
+		fallback(req)
+		return false
+	}
+}
+
+func submitLoop() {
+	for req := range submits {
+		submitOne(req)
+	}
+}
+
+func submitOne(req submitReq) {
+	submit(req.id, req.nonce, req.height)
+	if err := fetchWork(); err != nil {
+		log.Printf("post-submit getwork failed: %v (continuing)", err)
 	}
 }
 
